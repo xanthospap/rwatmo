@@ -63,7 +63,7 @@ int resolve_date(const char *line, dso::MjdEpoch &t) noexcept {
 }
 
 /* Starting from the already buffered line, keep on reading new lines from the 
- * stream untill we encounter a date that is later than the current one.
+ * stream until we encounter a date that is later than the current one.
  * At exit, the instance's bline will hold the last line read.
  */
 int dso::Vmf3FileStream::skip_block() noexcept {
@@ -77,7 +77,7 @@ int dso::Vmf3FileStream::skip_block() noexcept {
     return 1;
   }
 
-  /* loop through stream lines untill we meet a later date */
+  /* loop through stream lines until we meet a later date */
   int error = 0;
   dso::MjdEpoch ti(t);
   while (mstream.getline(bline, Vmf3FileStream::LINE_SZ) && (!error) &&
@@ -135,7 +135,7 @@ int dso::Vmf3SiteStream::forward_search(const dso::MjdEpoch &t, char *bline) {
   /* first set second epoch to first epoch */
   swap_epochs();
   
-  /* read blocks untill we are placed in the suitable interval. Note that the 
+  /* read blocks until we are placed in the suitable interval. Note that the 
    * first line to be read, is already buffered! 
    */
   char *line = mstream.bline;

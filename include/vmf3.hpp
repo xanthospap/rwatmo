@@ -50,7 +50,7 @@ class Vmf3FileStream {
   /* end of header position within the file */
   std::ifstream::pos_type meoh{-1};
   /* last line buffered */
-  char bline[LINE_SZ] = "#\0";
+  char bline[LINE_SZ] = "\0";
 
 public:
   Vmf3FileStream(const char *fn) : mfn(std::strcpy(mfn, fn)), mstream(mfn) {}
