@@ -11,10 +11,13 @@ namespace dso {
 /** @class
  * A simple class to hold all element records of a VMF3 record (based on 
  * VMF3 products published by TU WIEN).
+ * The data correspond to a given site, at a given epoch.
+ * The data can be found at:
+ * https://vmf.geo.tuwien.ac.at/trop_products/DORIS/VMF3/VMF3_OP/
  */
-class Vmf3Data {
-  double data[7];
+class Vmf3SiteData {
   dso::MjdEpoch mt;
+  double data[7];
 
 public:
   /* get datetime */
@@ -41,9 +44,9 @@ public:
 /* (9) water vapour pressure at the site (hPa) */
   const double &water_vapour_pressure() const noexcept {return data[6];}
   double &water_vapour_pressure() noexcept {return data[6];}
-}; /* class Vmf3Data */
+}; /* class Vmf3SiteData */
 
-class Vmf3FileStream {
+class Vmf3SiteFileStream {
   static constexpr const int LINE_SZ = 124;
   char mfn[256];
   std::ifstream mstream;
@@ -53,18 +56,18 @@ class Vmf3FileStream {
   char bline[LINE_SZ] = "\0";
 
 public:
-  Vmf3FileStream(const char *fn) : mfn(std::strcpy(mfn, fn)), mstream(mfn) {}
+  Vmf3SiteFileStream(const char *fn) : mfn(std::strcpy(mfn, fn)), mstream(mfn) {}
   /* no copy */
-  Vmf3FileStream(const Vmf3FileStream &) = delete;
+  Vmf3SiteFileStream(const Vmf3SiteFileStream &) = delete;
   /* no assign operator */
-  Vmf3FileStream& operator=(const Vmf3FileStream &) = delete;
+  Vmf3SiteFileStream& operator=(const Vmf3SiteFileStream &) = delete;
 
-}; /* class Vmf3FileStream */
+}; /* class Vmf3SiteFileStream */
 
 class Vmf3SiteStream {
   std::vector<const char *> msites;
-  std::vector<Vmf3Data> mdata;
-  Vmf3FileStream mstream;
+  std::vector<Vmf3SiteData> mdata;
+  Vmf3SiteFileStream mstream;
   
   void swap_epochs() noexcept {
     for (auto it = mdata.begin(); it != mdata.end(); it+=2)
