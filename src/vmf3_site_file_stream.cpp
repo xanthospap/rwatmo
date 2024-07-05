@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <charconv>
 #include <cstring>
-#include <datetime/calendar.hpp>
 #include <stdexcept>
 #include <vector>
 
@@ -95,28 +94,23 @@ int resolve_date(const char *line, dso::MjdEpoch &t) noexcept {
   return error;
 }
 
-auto find_if_sorted_string(const char *site,
-                           const std::vector<const char *> &sites) noexcept {
-  for (auto it = sites.begin(); it != sites.end(); ++it) {
-    int cmp = std::strcmp(*it, site);
-    if (!cmp)
-      return it;
-    if (cmp > 0)
-      return sites.end();
-  }
-  return sites.end();
+int skip_comment_lines(std::ifstream &fin, char *line, int MAX_CHARS) noexcept {
+  while ((*line && *line == '#') && fin.good())
+    fin.getline(line, MAX_CHARS);
+  return 0;
 }
 
 } /* unnamed namespace */
 
-dso::MjdEpoch dso::Vmf3SiteFileStream::buffered_epoch() const {
-  if (bline[0] == '#' && bline[1] == '\0') return dso::MjdEpoch::max();
-  dso::MjdEpoch t;
-  if (resolve_date(bline, t)) {
-    throw std::runtime_error("[ERROR]\n");
-  }
-  return t;
-}
+//dso::MjdEpoch dso::Vmf3SiteFileStream::buffered_epoch() const {
+//  if (bline[0] == '#' && bline[1] == '\0')
+//    return dso::MjdEpoch::max();
+//  dso::MjdEpoch t;
+//  if (resolve_date(bline, t)) {
+//    throw std::runtime_error("[ERROR]\n");
+//  }
+//  return t;
+//}
 
 /* Skip the current block from the stream file.
  *
@@ -129,23 +123,31 @@ dso::MjdEpoch dso::Vmf3SiteFileStream::buffered_epoch() const {
  * @return Anything other than 0 denotes an error.
  */
 int dso::Vmf3SiteFileStream::skip_block() noexcept {
-  /* get current time from buffered line */
-  dso::MjdEpoch t;
-  if (resolve_date(bline, t)) {
-    fprintf(stderr,
-            "[ERROR] Failed resolving date from VMF3 line: %s; file was %s "
-            "(traceback: %s)\n",
-            bline, mfn, __func__);
-    return 1;
+  //printf("Skipping block ... %s\n", __func__);
+  /* ti: epoch of current line in buffer 
+   * t : epoch of block to be skipped
+   */
+  int error = 0;
+  dso::MjdEpoch ti = mnext;
+  dso::MjdEpoch t = ti;
+  
+  /* loop through stream lines until we meet a later date */
+  while (mstream.getline(bline, LINE_SZ) && (!error) && (ti == t)) {
+    if ((*bline && *bline != '#'))
+      error += resolve_date(bline, ti);
   }
 
-  /* loop through stream lines until we meet a later date */
-  int error = 0;
-  dso::MjdEpoch ti(t);
-  while (mstream.getline(bline, LINE_SZ) && (!error) &&
-         (ti == t)) {
-    error += resolve_date(bline, ti);
+  /* something is wrong, report it */
+  if (error || (!mstream.good())) {
+    if (error) 
+      fprintf(stderr, "[ERROR] Failed resolving date from line %s from VMF3 file %s (traceback: %s)\n", bline, fn(), __func__);
+    else
+      fprintf(stderr, "[ERROR] Failed reading from VMF3 file %s; last line was: %s (traceback: %s)\n", fn(), bline, __func__);
   }
+
+  /* assign epochs */
+  mcurrent = t;
+  mnext = ti;
 
   return error;
 }
@@ -180,42 +182,66 @@ int dso::Vmf3SiteFileStream::parse_block(const std::vector<const char *> &sites,
                                          std::vector<Vmf3SiteData> &data,
                                          int recs_per_site,
                                          int rec_offset) noexcept {
-  /* get current time from buffered line */
-  dso::MjdEpoch t;
-  if (resolve_date(bline, t)) {
-    fprintf(stderr,
-            "[ERROR] Failed resolving date from VMF3 line: %s; file was %s "
-            "(traceback: %s)\n",
-            bline, mfn, __func__);
-    return 1;
-  }
+  // printf("Parsing block ... %s\n", __func__);
+  /* get current time from buffered line (skip comments) */
+  //skip_comment_lines(mstream, bline, LINE_SZ);
+  //dso::MjdEpoch t;
+  //if (resolve_date(bline, t)) {
+  //  fprintf(stderr,
+  //          "[ERROR] Failed resolving date from VMF3 line: %s; file was %s "
+  //          "(traceback: %s)\n",
+  //          bline, mfn, __func__);
+  //  return 1;
+  //}
+
+
+  /* assign current epoch */
+  mcurrent = mnext;
 
   /* loop through stream lines untill we meet a later date */
   int error = 0;
-  dso::MjdEpoch ti(t);
+  dso::MjdEpoch ti = mcurrent;
   dso::Vmf3SiteData d;
   char site[5];
   site[4] = '\0';
-  while ((!error) && (ti == t)) {
-    /* copy site name so that we can compare it */
-    std::memcpy(site, bline, 4);
-    /* are we interested in the site ? */
-    auto it = find_if_sorted_string(site, sites);
-    if (it != sites.end()) {
-      /* if yes, resolve the line and place the data in the data vector */
-      if (resolve_vmf3_line(bline, d)) {
-        fprintf(stderr,
-                "[ERROR] Failed resolving VMF3 line: %s (traceback: %s)\n",
-                bline, __func__);
-        ++error;
+  while ((!error) && (ti == mcurrent)) {
+    if (*bline && *bline != '#') {
+      /* copy site name so that we can compare it */
+      std::memcpy(site, bline, 4);
+      /* are we interested in the site ? */
+      auto it = vmf3_details::find_if_sorted_string(site, sites);
+      if (it != sites.end()) {
+        /* if yes, resolve the line and place the data in the data vector */
+        if (resolve_vmf3_line(bline, d)) {
+          fprintf(stderr,
+                  "[ERROR] Failed resolving VMF3 line: %s (traceback: %s)\n",
+                  bline, __func__);
+          ++error;
+        }
+        auto data_index =
+            std::distance(sites.begin(), it) * recs_per_site + rec_offset;
+        data[data_index] = d;
+        ti = d.t();
+      } else {
+        error += resolve_date(bline, ti);
       }
-      auto data_index =
-          std::distance(sites.begin(), it) * recs_per_site + rec_offset;
-      data[data_index] = d;
-    }
+    } 
+
     /* buffer next line to bline */
     mstream.getline(bline, LINE_SZ);
+    error += (!mstream.good());
   }
+  
+  /* something is wrong, report it */
+  if (error || (!mstream.good())) {
+    if (error) 
+      fprintf(stderr, "[ERROR] Failed resolving line % from VMF3 file %s (traceback: %s)\n", bline, fn(), __func__);
+    else
+      fprintf(stderr, "[ERROR] Failed reading from VMF3 file %s; lat line was: %s (traceback: %s)\n", fn(), bline, __func__);
+  }
+
+  /* assign next (buffered) epoch */
+  mnext = ti;
 
   return error;
 }

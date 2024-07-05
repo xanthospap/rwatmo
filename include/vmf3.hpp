@@ -8,6 +8,12 @@
 
 namespace dso {
 
+namespace vmf3_details {
+std::vector<const char *>::const_iterator
+find_if_sorted_string(const char *site,
+                      const std::vector<const char *> &sites) noexcept;
+}/* namespace vmf3_details */
+
 /** @class
  * A simple class to hold all element records of a VMF3 record (based on 
  * VMF3 products published by TU WIEN).
@@ -17,33 +23,35 @@ namespace dso {
  */
 class Vmf3SiteData {
   MjdEpoch mt;
-  double data[7];
+  double mdata[7];
 
 public:
   /* get datetime */
   const auto &t() const noexcept {return mt;}
   auto &t() noexcept {return mt;}
 /* (3) hydrostatic mf coefficient a_h */
-  const double &ah() const noexcept {return data[0];}
-  double &ah() noexcept {return data[0];}
+  const double &ah() const noexcept {return mdata[0];}
+  double &ah() noexcept {return mdata[0];}
 /* (4) wet mf coefficient a_w */
-  const double &aw() const noexcept {return data[1];}
-  double &aw() noexcept {return data[1];}
+  const double &aw() const noexcept {return mdata[1];}
+  double &aw() noexcept {return mdata[1];}
 /* (5) zenith hydrostatic delay (m) */
-  const double &zhd() const noexcept {return data[2];}
-  double &zhd() noexcept {return data[2];}
+  const double &zhd() const noexcept {return mdata[2];}
+  double &zhd() noexcept {return mdata[2];}
 /* (6) zenith wet delay (m) */
-  const double &zwd() const noexcept {return data[3];}
-  double &zwd() noexcept {return data[3];}
+  const double &zwd() const noexcept {return mdata[3];}
+  double &zwd() noexcept {return mdata[3];}
 /* (7) pressure at the site (hPa) */
-  const double &pressure() const noexcept {return data[4];}
-  double &pressure() noexcept {return data[4];}
+  const double &pressure() const noexcept {return mdata[4];}
+  double &pressure() noexcept {return mdata[4];}
 /* (8) temperature at the site (C) */
-  const double &temperature() const noexcept {return data[5];}
-  double &temperature() noexcept {return data[5];}
+  const double &temperature() const noexcept {return mdata[5];}
+  double &temperature() noexcept {return mdata[5];}
 /* (9) water vapour pressure at the site (hPa) */
-  const double &water_vapour_pressure() const noexcept {return data[6];}
-  double &water_vapour_pressure() noexcept {return data[6];}
+  const double &water_vapour_pressure() const noexcept {return mdata[6];}
+  double &water_vapour_pressure() noexcept {return mdata[6];}
+
+  double* data() noexcept {return mdata;}
 
   Vmf3SiteData(MjdEpoch t = MjdEpoch::max(), double *_data = nullptr)
       : mt(t) {
@@ -58,12 +66,16 @@ class Vmf3SiteFileStream {
   static constexpr const int LINE_SZ = 124;
   std::ifstream mstream;
   /* end of header position within the file */
-  std::ifstream::pos_type meoh{-1};
+  // std::ifstream::pos_type meoh{-1};
   /* last line buffered */
   char bline[LINE_SZ] = "#\0";
   char mfn[256];
+  MjdEpoch mcurrent{MjdEpoch::max()};
+  MjdEpoch mnext{MjdEpoch::min()};
 
 public:
+  const char *fn() const noexcept {return mfn;}
+
   Vmf3SiteFileStream(const char *fn) noexcept : mstream(fn) {
     std::strcpy(mfn, fn);
   }
@@ -77,9 +89,15 @@ public:
                   std::vector<Vmf3SiteData> &data, int recs_per_site = 1,
                   int rec_offset = 0) noexcept;
   /* return the epoch in the buffered line */
-  MjdEpoch buffered_epoch() const ;
+  // MjdEpoch buffered_epoch() const ;
   /* stream state according to std::basic_ios<CharT,Traits>::good */
   auto good() const noexcept {return mstream.good();}
+  /* set stream to top of file */
+  void rewind() noexcept {mstream.seekg(0);}
+  /* Current (just skipped/parsed) epoch */
+  const MjdEpoch &current_epoch() const noexcept { return mcurrent; }
+  /*  Next epoch (to be skipped/parsed); first line already buffered. */
+  const MjdEpoch &next_epoch() const noexcept { return mnext; }
 
 }; /* class Vmf3SiteFileStream */
 
@@ -90,6 +108,9 @@ class Vmf3SiteStream {
 
   std::vector<const char *> msites;
   std::vector<Vmf3SiteData> mdata;
+  /* current interval */
+  MjdEpoch t0{MjdEpoch::max()};
+  MjdEpoch t1{MjdEpoch::min()};
   Vmf3SiteFileStream mstream;
   char *mmemsites{nullptr};
 
@@ -110,11 +131,14 @@ class Vmf3SiteStream {
    * The mdata vector will be initialized with the correct number of elements 
    * (corresponding to the number of siztes given multiplied by RECS_PER_SITE).
    *
+   * Note that the function will also rewind the stream to the top-of-the-file
+   * position (aka we will be reading from the top of the data stream).
+   *
    * This function should be used to 'initialize' the instance.
    *
    * @param[in] sites List of sites (see description).
    */
-  void set_local_vectors(const std::vector<const char *> &sites) noexcept;
+  void initialize(const std::vector<const char *> &sites) noexcept;
   
   int forward_search(const MjdEpoch &t) noexcept;
 
@@ -123,12 +147,22 @@ public:
   ~Vmf3SiteStream() noexcept {if (mmemsites) delete[] mmemsites;}
 
   int set_at_epoch(const MjdEpoch &t) noexcept;
+  int operator()(const MjdEpoch &t) noexcept;
+
+  const std::vector<const char *> &sites() const noexcept {return msites;}
 
   void swap_epochs() noexcept {
     for (auto it = mdata.begin(); it != mdata.end(); it+=2)
       std::swap(*it, *(it+1));
+    std::swap(t0,t1);
     return;
   }
+
+  const MjdEpoch interval_start() const noexcept {return t0;}
+  const MjdEpoch interval_stop() const noexcept {return t1;}
+
+  int site_vmf3(const char *site) const noexcept;
+
 
 }; /* class Vmf3SiteStream */
 

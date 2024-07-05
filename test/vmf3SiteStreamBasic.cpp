@@ -18,7 +18,16 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < NUM_SITES; i++)
     sites.push_back(doris_sites[i]);
 
-  Vmf3SiteStream(argv[1], sites);
+  Vmf3SiteStream vstream(argv[1], sites);
+
+  for (const auto ptr: vstream.sites()) {
+    printf("Site: [%s]\n", ptr);
+  }
+
+  if (vstream(MjdEpoch(59792, FractionalSeconds(3600e0)))) {
+    fprintf(stderr, "Failed getting to epoch\n");
+    return 2;
+  }
 
   return 0;
 }

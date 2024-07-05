@@ -2,6 +2,7 @@ add_library(rwatmo)
 
 target_sources(rwatmo
   PRIVATE
+    vmf3_details.cpp
     vmf3_site_file_stream.cpp
     vmf3_site_stream.cpp
 )
