@@ -29,5 +29,16 @@ int main(int argc, char *argv[]) {
     return 2;
   }
 
+  Vmf3SiteData d;
+  for (int sec=0e0; sec <= 86400; sec+=1) {
+    const auto t = MjdEpoch(59792, FractionalSeconds((double)sec));
+    /* first buffer the interval requested */
+    if (vstream(t)) return 5;
+    if (vstream.site_vmf3("SOCA", t, d)) return 3;
+    printf("%.9f %.9f %.9f %.4f %.4f %.2f %.2f %.2f\n",
+           t.imjd() + t.fractional_days(), d.ah(), d.aw(), d.zhd(), d.zwd(),
+           d.pressure(), d.temperature(), d.water_vapour_pressure());
+  }
+
   return 0;
 }

@@ -54,7 +54,7 @@ void dso::Vmf3SiteStream::initialize(
 }
 
 int dso::Vmf3SiteStream::forward_search(const dso::MjdEpoch &t) noexcept {
-  printf("Calling %s ...\n", __func__);
+  //printf("Calling %s ...\n", __func__);
   /* first set second epoch to first epoch; t0 and t1 will also be swaped */
   swap_epochs();
 
@@ -88,7 +88,7 @@ int dso::Vmf3SiteStream::forward_search(const dso::MjdEpoch &t) noexcept {
 }
 
 int dso::Vmf3SiteStream::set_at_epoch(const dso::MjdEpoch &t) noexcept {
-  printf("Calling %s ...\n", __func__);
+  //printf("Calling %s ...\n", __func__);
   /* quick return, we already have the data for this epoch */
   if (t >= interval_start() && t < interval_stop())
     return 0;
@@ -135,28 +135,35 @@ int dso::Vmf3SiteStream::operator()(const dso::MjdEpoch &t) noexcept {
   }
 
   /**/
-  printf("Left buffer: %.6f right buffer: %.6f (value: %.6f)\n",
-         interval_start().imjd() + interval_start().fractional_days(),
-         interval_stop().imjd() + interval_stop().fractional_days(),
-         t.imjd() + t.fractional_days());
+  //printf("Left buffer: %.6f right buffer: %.6f (value: %.6f)\n",
+  //       interval_start().imjd() + interval_start().fractional_days(),
+  //       interval_stop().imjd() + interval_stop().fractional_days(),
+  //       t.imjd() + t.fractional_days());
 
   return 0;
 }
 
-int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t, dso::Vmf3SiteData &vmf3) noexcept {
+int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t,
+                                   dso::Vmf3SiteData &vmf3) noexcept {
   /* find the site in the site list */
   const auto it = vmf3_details::find_if_sorted_string(site, msites);
   if (it == msites.end()) {
-    fprintf(stderr, "[ERROR] Failed to find site %s in stream's site list! (traceback: %s)\n", site, __func__);
+    fprintf(stderr,
+            "[ERROR] Failed to find site %s in stream's site list! (traceback: "
+            "%s)\n",
+            site, __func__);
     return 1;
   }
 
   /* iterator to the data for this site */
-  int index = std::distance(msites.begin(), it) * RECS_PER_SITE;
+  int index = std::distance(msites.cbegin(), it) * RECS_PER_SITE;
 
   /* validate that we have the correct epochs */
-  if (!(t>=mdata[index] && t<mdata[index+1])) {
-    fprintf(stderr, "[ERROR] Buffered VMF3 data interval does not match! (traceback: %s)\n", __func__);
+  if (!(t >= mdata[index].t() && t < mdata[index + 1].t())) {
+    fprintf(
+        stderr,
+        "[ERROR] Buffered VMF3 data interval does not match! (traceback: %s)\n",
+        __func__);
     return 100;
   }
 
@@ -166,11 +173,13 @@ int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t, dso
   const auto dt1 = t1.diff<dso::DateTimeDifferenceType::FractionalDays>(t);
 
   const double *y0 = mdata[index].data();
-  const double *y1 = mdata[index+1].data();
+  const double *y1 = mdata[index + 1].data();
   double *__restrict__ y = vmf3.data();
-  for (int i=0; i<7; i++) 
-    y[i] = (y0[i] * dt1 + y1[i]*dt0)/dt10;
-  
+  for (int i = 0; i < 7; i++) {
+    // y[i] = (y0[i] * dt1 + y1[i] * dt0) / dt10;
+    y[i] = y0[i] + dt0 * (y1[i]-y0[i]) / dt10;
+  }
+
   /* assign epoch */
   vmf3.t() = t;
 

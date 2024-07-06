@@ -53,12 +53,12 @@ public:
 
   double* data() noexcept {return mdata;}
 
-  Vmf3SiteData(MjdEpoch t = MjdEpoch::max(), double *_data = nullptr)
+  Vmf3SiteData(MjdEpoch t = MjdEpoch::max(), double *data = nullptr)
       : mt(t) {
-    if (_data)
-      std::memcpy(data, _data, sizeof(double) * 7);
+    if (data)
+      std::memcpy(mdata, data, sizeof(double) * 7);
     else
-      std::memset((void *)data, 0, sizeof(double) * 7);
+      std::memset((void *)mdata, 0, sizeof(double) * 7);
   }
 }; /* class Vmf3SiteData */
 
@@ -161,7 +161,8 @@ public:
   const MjdEpoch interval_start() const noexcept {return t0;}
   const MjdEpoch interval_stop() const noexcept {return t1;}
 
-  int site_vmf3(const char *site) const noexcept;
+int site_vmf3(const char *site, const dso::MjdEpoch &t,
+                                   dso::Vmf3SiteData &vmf3) noexcept;
 
 
 }; /* class Vmf3SiteStream */
