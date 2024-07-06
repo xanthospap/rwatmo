@@ -151,6 +151,9 @@ public:
 
   const std::vector<const char *> &sites() const noexcept {return msites;}
 
+  std::vector<const char *>::iterator
+  append_site(const char *site) noexcept;
+
   void swap_epochs() noexcept {
     for (auto it = mdata.begin(); it != mdata.end(); it+=2)
       std::swap(*it, *(it+1));

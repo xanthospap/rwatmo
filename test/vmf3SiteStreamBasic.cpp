@@ -40,5 +40,11 @@ int main(int argc, char *argv[]) {
            d.pressure(), d.temperature(), d.water_vapour_pressure());
   }
 
+  vstream.append_site("RAQB");
+  vstream.append_site("DIOB");
+  for (const auto ptr: vstream.sites()) {
+    printf("Site: [%s]\n", ptr);
+  }
+
   return 0;
 }

@@ -1,11 +1,60 @@
 #include "vmf3.hpp"
 #include <algorithm>
 #include <cstring>
+#include <cstdlib>
 
 dso::Vmf3SiteStream::Vmf3SiteStream(const char *fn,
                                     const std::vector<const char *> &sites)
     : mstream(fn) {
   initialize(sites);
+}
+
+std::vector<const char *>::iterator
+dso::Vmf3SiteStream::append_site(const char *site) noexcept {
+  /* current size (in chars) */
+  int psize = msites.size() * SITE_LEN;
+  
+  /* allocate (new)memory */
+  auto ptr = new char[psize + SITE_LEN];
+
+  /* copy sites to memmory (in lexicographical order) */
+  int sitenr = 0;
+  for (const auto &s : msites) {
+    std::memcpy(ptr + sitenr * SITE_LEN, s, SITE_LEN);
+    ++sitenr;
+  }
+  
+  /* free memory */
+  delete[] mmemsites;
+  mmemsites = ptr; 
+
+  /* pointers are now invalidated; reset */
+  for (int i=0; i<msites.size(); i++) msites[i] = mmemsites + i*SITE_LEN;
+
+  /* copy new site to internal memory */
+  std::memcpy(mmemsites+psize, site, MAX_SITE_CHARS);
+  mmemsites[psize+MAX_SITE_CHARS] = '\0';
+
+  /* add new site */
+  auto it = msites.insert(std::lower_bound(msites.begin(), msites.end(), site, 
+                                           [](const char *a, const char *b) {
+                                             return std::strcmp(a, b) < 0;
+                                           }),
+                          mmemsites + psize);
+
+  /* data vector right shift at index */
+  int j = std::distance(msites.begin(), it) * RECS_PER_SITE;
+  auto dit =
+      mdata.insert(mdata.begin() + j, RECS_PER_SITE, dso::Vmf3SiteData{});
+
+  /* set dates at newly added data elements */
+
+  for (int i=0; i<RECS_PER_SITE-1; i++) {
+    ++dit;
+    dit->t() = dso::MjdEpoch::min();
+  }
+
+  return it;
 }
 
 void dso::Vmf3SiteStream::initialize(
