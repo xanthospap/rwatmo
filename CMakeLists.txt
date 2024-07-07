@@ -32,10 +32,8 @@ endif()
 add_subdirectory(src)
 
 # The tests
-#if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TESTING)
-    add_subdirectory(test)
-    enable_testing()
-#endif()
+add_subdirectory(test)
+enable_testing()
 
 add_compile_options(
   -Wall -Wextra -Werror -pedantic -W -Wshadow -march=native -DEIGEN_NO_AUTOMATIC_RESIZING
