@@ -9,9 +9,77 @@
 namespace dso {
 
 namespace vmf3_details {
+/** Iterator to the first element matching the given string, assuming a sorted 
+ * vector.
+ *
+ * @param[in] site  Null-terminated string to match (normally a 4-char id)
+ * @param[in] sites A (lexicogrtaphically) sorted vector of null-terminated 
+ *                  site names to match against.
+ * @return Iterator to the first vector element matching the given string, or 
+ *         sites.end() if no match.
+ */
 std::vector<const char *>::const_iterator
 find_if_sorted_string(const char *site,
                       const std::vector<const char *> &sites) noexcept;
+
+/** b and c 'empirical' VMF3 coefficients (wet and dry component) */
+struct Vmf3EmpiricalCoeffs {
+  double bh,bw,ch,cw;
+  
+  /** VMF3 wet and dry maping functions given the 'a' coefficients 
+   *
+   * The instance already holds the 'empirical' b and c coefficients. Given 
+   * the 'a' coefficients (e.g. from site-specific or grid files) and the 
+   * elevationa angle, the function will compute the wet and dry maping 
+   * functions.
+   *
+   * @param[in] el Elevation [rad]
+   * @param[in] ah Hydrostatic 'a' coefficient
+   * @param[in] aw Wet 'a' coefficient
+   * @param[out] mfh Mapping function, hydrostatic component [m]
+   * @param[out] mfw Mapping function, wet component [m]
+   * @return Always 0
+   */
+  int mf(double el, double ah, double aw, double &mfh,
+         double &mfw) const noexcept {
+    const double sel = std::sin(el);
+    /* compute the hydrostatic and wet mapping factors */
+    mfh = (1 + (ah / (1 + bh / (1 + ch)))) /
+          (sel + (ah / (sel + bh / (sel + ch))));
+    mfw = (1 + (aw / (1 + bw / (1 + cw)))) /
+          (sel + (aw / (sel + bw / (sel + cw))));
+    return 0;
+  }
+};/* Vmf3EmpiricalCoeffs */ 
+
+/** Full set of coefficients for computing b and c 'empirical' VMF3 
+ * coefficients, given an epoch.
+ */
+struct Vmf3FullCoeffs {
+  double bh_A0{0e0};
+  double bh_A1{0e0};
+  double bh_B1{0e0};
+  double bh_A2{0e0};
+  double bh_B2{0e0};
+  double bw_A0{0e0};
+  double bw_A1{0e0};
+  double bw_B1{0e0};
+  double bw_A2{0e0};
+  double bw_B2{0e0};
+  double ch_A0{0e0};
+  double ch_A1{0e0};
+  double ch_B1{0e0};
+  double ch_A2{0e0};
+  double ch_B2{0e0};
+  double cw_A0{0e0};
+  double cw_A1{0e0};
+  double cw_B1{0e0};
+  double cw_A2{0e0};
+  double cw_B2{0e0};
+
+  /** Given an epoch, compute the b and c 'empirical' VMF3 coefficients */
+  Vmf3EmpiricalCoeffs computeCoeffs(const dso::MjdEpoch &t) const noexcept;
+}; /* Vmf3FullCoeffs */
 }/* namespace vmf3_details */
 
 /** @class
@@ -29,25 +97,25 @@ public:
   /* get datetime */
   const auto &t() const noexcept {return mt;}
   auto &t() noexcept {return mt;}
-/* (3) hydrostatic mf coefficient a_h */
+/* (3) hydrostatic mf ('a') coefficient a_h */
   const double &ah() const noexcept {return mdata[0];}
   double &ah() noexcept {return mdata[0];}
-/* (4) wet mf coefficient a_w */
+/* (4) wet mf ('a') coefficient a_w */
   const double &aw() const noexcept {return mdata[1];}
   double &aw() noexcept {return mdata[1];}
-/* (5) zenith hydrostatic delay (m) */
+/* (5) zenith hydrostatic delay [m] */
   const double &zhd() const noexcept {return mdata[2];}
   double &zhd() noexcept {return mdata[2];}
-/* (6) zenith wet delay (m) */
+/* (6) zenith wet delay [m] */
   const double &zwd() const noexcept {return mdata[3];}
   double &zwd() noexcept {return mdata[3];}
-/* (7) pressure at the site (hPa) */
+/* (7) pressure at the site [hPa] */
   const double &pressure() const noexcept {return mdata[4];}
   double &pressure() noexcept {return mdata[4];}
-/* (8) temperature at the site (C) */
+/* (8) temperature at the site [C] */
   const double &temperature() const noexcept {return mdata[5];}
   double &temperature() noexcept {return mdata[5];}
-/* (9) water vapour pressure at the site (hPa) */
+/* (9) water vapour pressure at the site [hPa] */
   const double &water_vapour_pressure() const noexcept {return mdata[6];}
   double &water_vapour_pressure() noexcept {return mdata[6];}
 
@@ -169,6 +237,8 @@ int site_vmf3(const char *site, const dso::MjdEpoch &t,
 
 
 }; /* class Vmf3SiteStream */
+
+auto vmf3(const MjdEpoch &t, const Vmf3SiteData &data, double lat, double lon, double zd) noexcept;
 
 } /* namespace dso */
 
