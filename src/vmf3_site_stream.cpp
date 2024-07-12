@@ -103,7 +103,6 @@ void dso::Vmf3SiteStream::initialize(
 }
 
 int dso::Vmf3SiteStream::forward_search(const dso::MjdEpoch &t) noexcept {
-  //printf("Calling %s ...\n", __func__);
   /* first set second epoch to first epoch; t0 and t1 will also be swaped */
   swap_epochs();
 
@@ -137,7 +136,6 @@ int dso::Vmf3SiteStream::forward_search(const dso::MjdEpoch &t) noexcept {
 }
 
 int dso::Vmf3SiteStream::set_at_epoch(const dso::MjdEpoch &t) noexcept {
-  //printf("Calling %s ...\n", __func__);
   /* quick return, we already have the data for this epoch */
   if (t >= interval_start() && t < interval_stop())
     return 0;
@@ -157,7 +155,6 @@ int dso::Vmf3SiteStream::set_at_epoch(const dso::MjdEpoch &t) noexcept {
               mstream.fn(), __func__);
       return error;
     }
-    printf("Read first two epoch of stream, i.e. %.6f, %.6f\n", interval_start().imjd() + interval_start().fractional_days(), interval_stop().imjd() + interval_stop().fractional_days());
   }
 
   /* maybe the epoch is out of range in past */
@@ -173,24 +170,18 @@ int dso::Vmf3SiteStream::set_at_epoch(const dso::MjdEpoch &t) noexcept {
   return forward_search(t);
 }
 
-int dso::Vmf3SiteStream::operator()(const dso::MjdEpoch &t) noexcept {
-  /* locate interval and buffer data */
-  if (this->set_at_epoch(t)) {
-    fprintf(stderr,
-            "[ERROR] Failed locating suitable interval for epoch %.6f for VMF3 "
-            "stream %s (traceback: %s)\n",
-            t.imjd() + t.fractional_days(), mstream.fn(), __func__);
-    return 1;
-  }
-
-  /**/
-  //printf("Left buffer: %.6f right buffer: %.6f (value: %.6f)\n",
-  //       interval_start().imjd() + interval_start().fractional_days(),
-  //       interval_stop().imjd() + interval_stop().fractional_days(),
-  //       t.imjd() + t.fractional_days());
-
-  return 0;
-}
+//int dso::Vmf3SiteStream::operator()(const dso::MjdEpoch &t) noexcept {
+//  /* locate interval and buffer data */
+//  if (this->set_at_epoch(t)) {
+//    fprintf(stderr,
+//            "[ERROR] Failed locating suitable interval for epoch %.6f for VMF3 "
+//            "stream %s (traceback: %s)\n",
+//            t.imjd() + t.fractional_days(), mstream.fn(), __func__);
+//    return 1;
+//  }
+//
+//  return 0;
+//}
 
 int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t,
                                    dso::Vmf3SiteData &vmf3) noexcept {

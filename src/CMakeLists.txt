@@ -5,6 +5,7 @@ target_sources(rwatmo
     vmf3_details.cpp
     vmf3_site_file_stream.cpp
     vmf3_site_stream.cpp
+    vmf3_full_coeffs.cpp
 )
 
 target_include_directories(rwatmo
