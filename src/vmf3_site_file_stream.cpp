@@ -102,28 +102,7 @@ int skip_comment_lines(std::ifstream &fin, char *line, int MAX_CHARS) noexcept {
 
 } /* unnamed namespace */
 
-//dso::MjdEpoch dso::Vmf3SiteFileStream::buffered_epoch() const {
-//  if (bline[0] == '#' && bline[1] == '\0')
-//    return dso::MjdEpoch::max();
-//  dso::MjdEpoch t;
-//  if (resolve_date(bline, t)) {
-//    throw std::runtime_error("[ERROR]\n");
-//  }
-//  return t;
-//}
-
-/* Skip the current block from the stream file.
- *
- * Starting from the already buffered line, keep on reading new lines from the
- * stream until we encounter a date that is later than the current one.
- *
- * At exit, the instance's bline will hold the last line read, i.e. the first
- * line (record) of the new block.
- *
- * @return Anything other than 0 denotes an error.
- */
 int dso::Vmf3SiteFileStream::skip_block() noexcept {
-  //printf("Skipping block ... %s\n", __func__);
   /* ti: epoch of current line in buffer 
    * t : epoch of block to be skipped
    */
@@ -152,49 +131,10 @@ int dso::Vmf3SiteFileStream::skip_block() noexcept {
   return error;
 }
 
-/* Read through a given block (of same epoch) and store VMF3 data.
- *
- * Starting from the already buffered line, keep on reading and parsing
- * new lines from the stream untill we encounter a date that is later than
- * the given one.
- * If the line holds data for a site of interest, store VMF3 records in the
- * passed-in data vector.
- * At exit, the instance's bline will hold the last line read.
- *
- * @param[in] site A vector of sites (for DORIS 4-chars); each site name
- *            should be a null-terminated C-string
- * @param[out] data The vector where the data for the sites of interest will
- *            be stored. Data (i.e. VMF3 records) are copyied into the vector,
- *            NOT APPENDED, hence the vector should have the right size at
- *            input.
- *            If a given record line matches the site name at index j of the
- *            sites (input) vector, then the corresponding VMF3 (parsed) data
- *            will be stored at index j*recs_per_size+rec_offset.
- *            This "indexing" is used to allow multiple records of different
- *            datetimes to be stored in the data vector.
- * @param[in] recs_per_site Number of records per site in the data vector (see
- *            above).
- * @param[in] rec_offset Offset to be used for indexing within the data vector
- *            (see above).
- * @return Anything other than 0 denotes an error.
- */
 int dso::Vmf3SiteFileStream::parse_block(const std::vector<const char *> &sites,
                                          std::vector<Vmf3SiteData> &data,
                                          int recs_per_site,
                                          int rec_offset) noexcept {
-  // printf("Parsing block ... %s\n", __func__);
-  /* get current time from buffered line (skip comments) */
-  //skip_comment_lines(mstream, bline, LINE_SZ);
-  //dso::MjdEpoch t;
-  //if (resolve_date(bline, t)) {
-  //  fprintf(stderr,
-  //          "[ERROR] Failed resolving date from VMF3 line: %s; file was %s "
-  //          "(traceback: %s)\n",
-  //          bline, mfn, __func__);
-  //  return 1;
-  //}
-
-
   /* assign current epoch */
   mcurrent = mnext;
 

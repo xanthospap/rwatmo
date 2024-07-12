@@ -97,28 +97,28 @@ public:
   /* get datetime */
   const auto &t() const noexcept {return mt;}
   auto &t() noexcept {return mt;}
-/* (3) hydrostatic mf ('a') coefficient a_h */
+  /* (3) hydrostatic mf ('a') coefficient a_h */
   const double &ah() const noexcept {return mdata[0];}
   double &ah() noexcept {return mdata[0];}
-/* (4) wet mf ('a') coefficient a_w */
+  /* (4) wet mf ('a') coefficient a_w */
   const double &aw() const noexcept {return mdata[1];}
   double &aw() noexcept {return mdata[1];}
-/* (5) zenith hydrostatic delay [m] */
+  /* (5) zenith hydrostatic delay [m] */
   const double &zhd() const noexcept {return mdata[2];}
   double &zhd() noexcept {return mdata[2];}
-/* (6) zenith wet delay [m] */
+  /* (6) zenith wet delay [m] */
   const double &zwd() const noexcept {return mdata[3];}
   double &zwd() noexcept {return mdata[3];}
-/* (7) pressure at the site [hPa] */
+  /* (7) pressure at the site [hPa] */
   const double &pressure() const noexcept {return mdata[4];}
   double &pressure() noexcept {return mdata[4];}
-/* (8) temperature at the site [C] */
+  /* (8) temperature at the site [C] */
   const double &temperature() const noexcept {return mdata[5];}
   double &temperature() noexcept {return mdata[5];}
-/* (9) water vapour pressure at the site [hPa] */
+  /* (9) water vapour pressure at the site [hPa] */
   const double &water_vapour_pressure() const noexcept {return mdata[6];}
   double &water_vapour_pressure() noexcept {return mdata[6];}
-
+  /* return pointer to internal storage */
   double* data() noexcept {return mdata;}
 
   Vmf3SiteData(MjdEpoch t = MjdEpoch::max(), double *data = nullptr)
@@ -130,40 +130,94 @@ public:
   }
 }; /* class Vmf3SiteData */
 
+/** A site-specific VMF3 data file stream. Note that this instance is meant to
+ * assist parsing a data file in a forward sense, i.e. from one epoch to the 
+ * next going forward into the file.
+ */
 class Vmf3SiteFileStream {
+  /* max number of characters in a line */
   static constexpr const int LINE_SZ = 124;
+  /* the file sttream */
   std::ifstream mstream;
-  /* end of header position within the file */
-  // std::ifstream::pos_type meoh{-1};
   /* last line buffered */
   char bline[LINE_SZ] = "#\0";
+  /* the filename */
   char mfn[256];
+  /* last epoch read */
   MjdEpoch mcurrent{MjdEpoch::max()};
+  /* epoch of new block; first line already stored in bline */
   MjdEpoch mnext{MjdEpoch::min()};
 
 public:
+  /* return the filename */
   const char *fn() const noexcept {return mfn;}
 
+  /* constructor; only the filename is set, the stream is NOT opened */
   Vmf3SiteFileStream(const char *fn) noexcept : mstream(fn) {
     std::strcpy(mfn, fn);
   }
+
   /* no copy */
   Vmf3SiteFileStream(const Vmf3SiteFileStream &) = delete;
+  
   /* no assign operator */
   Vmf3SiteFileStream& operator=(const Vmf3SiteFileStream &) = delete;
 
+  /* Skip the next block.
+   * 
+   * A 'block' is a series of data records of a common epoch. The first line 
+   * of this block is already stored in bline. Keep reading and skipping lines 
+   * untill we meet a data record of a later epoch.
+   * When this happens, the last line (i.e. first line of next block) is 
+   * stored in bline and the function returns, having set the current and next 
+   * epochs.
+   *
+   * @return Anything other than 0 denotes an error.
+   */
   int skip_block() noexcept;
+
+  /* Parse the next block.
+   *
+   * A 'block' is a series of data records of a common epoch. The first line
+   * of this block is already stored in bline. Keep reading and parsing lines
+   * untill we meet a data record of a later epoch.
+   * When this happens, the last line (i.e. first line of next block) is
+   * stored in bline and the function returns, having set the current and next
+   * epochs.
+   *
+   * Data lines that hold records for sites of interest are stored in the
+   * data vector.
+   *
+   * @param[in] site A vector of sites (for DORIS 4-chars); each site name
+   *            should be a null-terminated C-string
+   * @param[out] data The vector where the data for the sites of interest will
+   *            be stored. Data (i.e. VMF3 records) are copyied into the vector,
+   *            NOT APPENDED, hence the vector should have the right size at
+   *            input.
+   *            If a given record line matches the site name at index j of the
+   *            sites (input) vector, then the corresponding VMF3 (parsed) data
+   *            will be stored at index j*recs_per_size+rec_offset.
+   *            This "indexing" is used to allow multiple records of different
+   *            datetimes to be stored in the data vector.
+   * @param[in] recs_per_site Number of records per site in the data vector (see
+   *            above).
+   * @param[in] rec_offset Offset to be used for indexing within the data vector
+   *            (see above).
+   * @return Anything other than 0 denotes an error.
+   */
   int parse_block(const std::vector<const char *> &sites,
                   std::vector<Vmf3SiteData> &data, int recs_per_site = 1,
                   int rec_offset = 0) noexcept;
-  /* return the epoch in the buffered line */
-  // MjdEpoch buffered_epoch() const ;
+  
   /* stream state according to std::basic_ios<CharT,Traits>::good */
   auto good() const noexcept {return mstream.good();}
+  
   /* set stream to top of file */
   void rewind() noexcept {mstream.seekg(0);}
+  
   /* Current (just skipped/parsed) epoch */
   const MjdEpoch &current_epoch() const noexcept { return mcurrent; }
+  
   /*  Next epoch (to be skipped/parsed); first line already buffered. */
   const MjdEpoch &next_epoch() const noexcept { return mnext; }
 
