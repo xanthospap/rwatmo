@@ -2,6 +2,7 @@
 #define __DSO_TUWIEN_VMF_TROPO_PRODUCTS_HPP__
 
 #include "datetime/calendar.hpp"
+#include "geodesy/geodesy.hpp"
 #include <cstring>
 #include <fstream>
 #include <vector>
@@ -304,6 +305,10 @@ class Vmf3SiteStream {
    */
   int forward_search(const MjdEpoch &t) noexcept;
 
+  std::vector<vmf3_details::Vmf3FullCoeffs>::iterator
+  set_site_coordinates(const char *site,
+                       const GeodeticCrdConstView &crd) noexcept;
+
 public:
   /* Constructor using the VMF3 (site) data file and a list of sites */
   Vmf3SiteStream(const char *fn, const std::vector<const char *> &sites);
@@ -355,9 +360,6 @@ public:
                 dso::Vmf3SiteData &vmf3) noexcept;
 
 }; /* class Vmf3SiteStream */
-
-//auto vmf3(const MjdEpoch &t, const Vmf3SiteData &data, double lat, double lon,
-//          double zd) noexcept;
 
 } /* namespace dso */
 

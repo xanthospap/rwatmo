@@ -225,3 +225,30 @@ int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t,
 
   return 0;
 }
+
+std::vector<dso::vmf3_details::Vmf3FullCoeffs>::iterator
+dso::Vmf3SiteStream::set_site_coordinates(
+    const char *site, const dso::GeodeticCrdConstView &crd) noexcept {
+  /* find site in list of sites */
+  const auto it = vmf3_details::find_if_sorted_string(site, msites);
+  if (it == msites.end()) {
+    fprintf(stderr,
+            "[ERROR] Failed to find site %s in stream's site list! (traceback: "
+            "%s)\n",
+            site, __func__);
+    return mvfc.end();
+  }
+
+  /* compute vmf3FullCoeffSet for given site */
+  int index = std::distance(msites.cbegin(), it);
+  if (index >= mvfc.size()) {
+    fprintf(stderr,
+            "[ERROR] Incosistent size of Vmf3FullCoeffs in Vmf3SiteStream; "
+            "site is %s (traceback: %s)\n",
+            site, __func__);
+    return mvfc.end();
+  }
+
+  mvfc[index] = dso::vmf3_details::vmf3FullCoeffSet(crd.lon(), crd.lat());
+  return mvfc.begin() + index;
+}
