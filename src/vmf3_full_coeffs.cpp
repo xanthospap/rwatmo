@@ -1280,8 +1280,8 @@ constexpr const double bnm_cw[5][91] = {
      -6.721717117285140e-17}};
 } /* unnamed namespace */
 
-dso::vmf3_details::Vmf3FullCoeffs vmf3FullCoeffSet(double lon,
-                                                   double lat) noexcept {
+dso::vmf3_details::Vmf3FullCoeffs
+dso::vmf3_details::vmf3FullCoeffSet(double lon, double lat) noexcept {
   const double polDist = M_PI / 2 - lat;
   const double x = std::sin(polDist) * std::cos(lon);
   const double y = std::sin(polDist) * std::sin(lon);

@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdlib>
+#include <datetime/datetime_tops.hpp>
 
 dso::Vmf3SiteStream::Vmf3SiteStream(const char *fn,
                                     const std::vector<const char *> &sites)
@@ -184,7 +185,7 @@ int dso::Vmf3SiteStream::set_at_epoch(const dso::MjdEpoch &t) noexcept {
 //}
 
 int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t,
-                                   dso::Vmf3SiteData &vmf3) noexcept {
+                                   dso::Vmf3SiteData &vmf3, int *site_index) noexcept {
   /* find the site in the site list */
   const auto it = vmf3_details::find_if_sorted_string(site, msites);
   if (it == msites.end()) {
@@ -223,6 +224,40 @@ int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t,
   /* assign epoch */
   vmf3.t() = t;
 
+  /* assign site index */
+  if (site_index) *site_index = std::distance(msites.cbegin(), it);
+
+  return 0;
+}
+
+int dso::Vmf3SiteStream::site_vmf3(
+    const char *site, const dso::MjdEpoch &t, double el,
+    dso::Vmf3SiteStream::Vmf3Result &res) noexcept {
+  /* interpolate VMF3 data */
+  dso::Vmf3SiteData site_data;
+  int site_index;
+  if (site_vmf3(site, t, site_data, &site_index)) {
+    fprintf(stderr,
+            "[ERROR] Failed interpolating VMF3 data for site %s at %.6f "
+            "(traceback: %s)\n",
+            t.imjd() + t.fractional_days(), __func__);
+    return 1;
+  }
+
+  /* the FullCoeffs should be at index site_index of the mvfc vector; compute 
+   * empirical coeffs for epoch 
+   */
+  const auto ec = mvfc[site_index].computeCoeffs(t);
+
+  /* VMF3 wet and dry maping functions for given elevation angle */
+  double mfh, mfw;
+  ec.mf(el, site_data.ah(), site_data.aw(), res.mfh, res.mfw);
+
+  /* assign zenith path delays */
+  res.zhd = site_data.zhd();
+  res.zwd = site_data.zwd();
+
+  /* all done */
   return 0;
 }
 

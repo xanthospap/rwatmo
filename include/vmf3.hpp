@@ -2,7 +2,7 @@
 #define __DSO_TUWIEN_VMF_TROPO_PRODUCTS_HPP__
 
 #include "datetime/calendar.hpp"
-#include "geodesy/geodesy.hpp"
+#include "geodesy/transformations.hpp"
 #include <cstring>
 #include <fstream>
 #include <vector>
@@ -85,6 +85,18 @@ struct Vmf3FullCoeffs {
 /** Given longitude and latitude of a site, compute the Vmf3FullCoeffs */
 Vmf3FullCoeffs vmf3FullCoeffSet(double lon, double lat) noexcept;
 } /* namespace vmf3_details */
+
+/* Computing VMF3 with the Vmf3SiteStream goes a little bit like this:
+ * 1. Construct a Vmf3SiteStream instance
+ *    To do this, you will need a) a VMF3 site data stream (daily or yearly), 
+ *    a list of site names (4-char id's in the case of DORIS).
+ * 2. If we want the VMF3 info (that is mapping functions and zenith path 
+ *    delays) for a given epoch t, then:
+ *    a) search for the epoch: stream.set_at_epoch(t)
+ *    b) for any given site, compute the VMF3 mapping functions via a call to
+ *      site_vmf3(const char *site, const dso::MjdEpoch &t, double el,
+ *              double &mfh, double &mfw)
+ */
 
 /** @class
  * A simple class to hold all element records of a VMF3 record (based on
@@ -353,11 +365,42 @@ public:
   const MjdEpoch interval_stop() const noexcept { return t1; }
 
   /* Interpolate the VMF3 data for the requested site at the requested epoch 
-   * It is auumed that t0 <= t < t1. Hence, you should first have called the 
+   * It is assumed that t0 <= t < t1. Hence, you should first have called the 
    * set_at_epoch function for this epoch.
+   *
+   * @param[in] site Site name (for DORIS a 4-char id) as given in the VMF3 
+   *            data file; null terminated c-string.
+   * @param[in] t    Epoch requested
+   * @param[out] vmf3 A Vmf3SiteData holding interpolation results (for 
+   *                 requested epoch)
+   * @param[out] site_index If given, at output it will hold the index of the 
+   *                 given site in the msites vector
+   * @return On success, return 0; anything else denotes an error
    */
   int site_vmf3(const char *site, const dso::MjdEpoch &t,
-                dso::Vmf3SiteData &vmf3) noexcept;
+                dso::Vmf3SiteData &vmf3, int *site_index = nullptr) noexcept;
+
+  /* VMF3 computation results; all units are [m] */
+  struct Vmf3Result { double zhd, zwd, mfh, mfw; };
+
+  /* Interpolate the VMF3 data for the requested site at the requested epoch, 
+   * and compute VMF3 mapping functions (hydrostatic and wet) for the given 
+   * elevationa angle.
+   * It is assumed that t0 <= t < t1. Hence, you should first have called the 
+   * set_at_epoch function for this epoch.
+   *
+   * @param[in] site Site name (for DORIS a 4-char id) as given in the VMF3 
+   *            data file; null terminated c-string.
+   * @param[in] t    Epoch requested
+   * @param[in] el   Elevation angle [rad]
+   * @param[out] res VMF3 interpolation/computation results; zhd and zwd are 
+   *                 the results from interpolating the two adjacent VMF3 
+   *                 data (for epochs t0 and t1). mf[hw] are the computation 
+   *                 results for the VMF3 mapping functions.
+   * @return On success, return 0; anything else denotes an error
+   */
+  int site_vmf3(const char *site, const dso::MjdEpoch &t, double el,
+                Vmf3Result &res) noexcept;
 
 }; /* class Vmf3SiteStream */
 
