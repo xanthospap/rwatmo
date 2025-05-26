@@ -1,5 +1,7 @@
 #include "nrlmsise.hpp"
 
+
+
 /* TEMPERATURE */
 double dso::Nrlmsise00::pt[150] = {
      9.86573E-01, 1.62228E-02, 1.55270E-02,-1.04323E-01,-3.75801E-03,
