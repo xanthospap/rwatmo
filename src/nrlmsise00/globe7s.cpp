@@ -1,15 +1,13 @@
-#include "nrlmsise.hpp"
-#include <cmath>
 #include "geodesy/units.hpp"
 
-double globe7s(const double *p, double tloc, double doy, double sec, double glat,
-               double glon, double f107, double f107A,
-               const double *const ap, const double* plg[]) noexcept {
+double dso::Nrlmsise00::globe7s(const double *p, dso::Nrlmsise00::DataTrigs &dt,
+                                double doy, double sec, double glon,
+                                double f107, double f107A,
+                                const double *const ap, const double *plg[],
+                                double *apt) const noexcept {
   /*    VERSION OF GLOBE FOR LOWER ATMOSPHERE 10/26/99
    */
   constexpr const double pset = 2.0;
-  constexpr const double dr = 1.72142e-2;
-  // constexpr const double dgtr = 1.74533e-2;
 
   /* initialize temperatures */
   double t[14];
@@ -43,17 +41,17 @@ double globe7s(const double *p, double tloc, double doy, double sec, double glat
   /* DIURNAL */
   const double t71 = p[11] * plg[1][2] * cd14;
   const double t72 = p[12] * plg[1][2] * cd14;
-  t[6] = ((p[3] * plg[1][1] + p[4] * plg[1][3] + t71) * ctloc +
-          (p[6] * plg[1][1] + p[7] * plg[1][3] + t72) * stloc);
+  t[6] = ((p[3] * plg[1][1] + p[4] * plg[1][3] + t71) * dt.ctloc +
+          (p[6] * plg[1][1] + p[7] * plg[1][3] + t72) * dt.stloc);
 
   /* SEMIDIURNAL */
   const double t81 = (p[23] * plg[2][3] + p[35] * plg[2][5]) * cd14;
   const double t82 = (p[33] * plg[2][3] + p[36] * plg[2][5]) * cd14;
-  t[7] = ((p[5] * plg[2][2] + p[41] * plg[2][4] + t81) * c2tloc +
-          (p[8] * plg[2][2] + p[42] * plg[2][4] + t82) * s2tloc);
+  t[7] = ((p[5] * plg[2][2] + p[41] * plg[2][4] + t81) * dt.c2tloc +
+          (p[8] * plg[2][2] + p[42] * plg[2][4] + t82) * dt.s2tloc);
 
   /* TERDIURNAL */
-  t[13] = p[39] * plg[3][3] * s3tloc + p[40] * plg[3][3] * c3tloc;
+  t[13] = p[39] * plg[3][3] * dt.s3tloc + p[40] * plg[3][3] * dt.c3tloc;
 
   /* MAGNETIC ACTIVITY */
   t[8] = (p[50] * apt[0] + p[96] * plg[0][2] * apt[0]);

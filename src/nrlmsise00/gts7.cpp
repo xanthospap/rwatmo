@@ -1,37 +1,36 @@
-#include "geodesy/transformations.hpp"
+#include "geodesy/ellipsoid.hpp"
+#include "geodesy/units.hpp"
 #include "nrlmsise.hpp"
-#include <cmath>
 #include <stdexcept>
 
-/* lat = geodetic latitude
- *
- * Computes:
- * densities[0-8]
- * temperatures[0]
- *
- * */
 double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
                              const dso::GeodeticCrd &flh, double f107A,
                              double f107, const double *const ap,
                              double *densities, double *temperatures) {
 
-  const double sec = t.seconds.seconds();
+  const double sec = t.seconds().seconds();
   dso::ydoy_date yd = t.to_ydoy();
-  int doy = yd.day_of_year().as_underlying_type();
-  const double tloc = sec/3600e0 + dso::rad2deg(flh.lon())/15.e0;
+  int doy = yd.dy().as_underlying_type();
+  const double tloc = sec / 3600e0 + dso::rad2deg(flh.lon()) / 15.e0;
 
   /* altitude in km */
   const double altitude =
-      (flh.h() - dso::mean_earth_radius<dso::Ellipsoid::grs80>()) * 1e-3;
-  if (altitude<72.5) {
-    fprintf(stderr, "[ERROR] Cannot compute density for altitude < 72.5 km. Need to append to implementation! (traceback: %s)\n", __func__);
-    std::string ermsg = "Cannot compute density for altitude < 72.5 km. Need to append to implementation!\n";
+      (flh.hgt() - dso::mean_earth_radius<dso::ellipsoid::grs80>()) * 1e-3;
+  if (altitude < 72.5) {
+    fprintf(stderr,
+            "[ERROR] Cannot compute density for altitude < 72.5 km. Need to "
+            "append to implementation! (traceback: %s)\n",
+            __func__);
+    std::string ermsg = "Cannot compute density for altitude < 72.5 km. Need "
+                        "to append to implementation!\n";
     throw std::runtime_error(ermsg);
   }
 
-  double zn1[5] = {120.0, 110.0, 100.0, 90.0, 72.5};
-  const double za = pdl[1][15];
-  zn1[0] = za;
+  const double alpha[9] = {-0.38, 0.0, 0.0, 0.0, 0.17, 0.0, -0.38, 0.0, 0.0};
+  constexpr const double altl[8] = {200.0, 300.0, 160.0, 250.0,
+                                    240.0, 450.0, 320.0, 450.0};
+  constexpr const double zn1[5] = {1.23435e+02, 110.0, 100.0, 90.0, 72.5};
+  constexpr const int mn1 = 5;
 
   /* initialize all densities to 0 */
   for (int j = 0; j < 9; j++)
@@ -41,28 +40,32 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
   double plg[4][9];
   plg[0][1] = 0e0; /* signal computation of polynomials */
 
+  /* needed by glob7[s] */
+  double apt[4];
+
+  /* Precompute trigs */
+  DataTrigs dt(flh.lat(), tloc);
+
   /* tinf variations not important below za or zn1(1) */
   temperatures[0] =
       ptm[0] * pt[0] +
-      (altitude > zn1[0]) *
-          (1.0 + dso::nrlmsise_impl::globe7(pt, tloc, doy, sec, flh.lat(),
-                                            flh.lon(), f107, f107A, ap, plg));
+      (altitude > zn1[0]) * (1.0 + globe7(pt, dt, doy, sec, flh.lon(), f107,
+                                          f107A, ap, plg, apt));
 
   /*  gradient variations not important below zn1(5) */
   double g0;
   if (altitude > zn1[4]) {
     g0 = ptm[3] * ps[0] *
-         (1.0 + dso::nrlmsise_impl::globe7(ps, tloc, doy, sec, flh.lat(),
-                                           flh.lon(), f107, f107A, ap, plg));
+         (1.0 + globe7(ps, dt, doy, sec, flh.lon(), f107, f107A, ap, plg, apt));
   } else {
     g0 = ptm[3] * ps[0];
   }
-  const double tlb =
-      ptm[1] *
-      (1.0 + dso::nrlmsise_impl::globe7(pd[3], tloc, doy, sec, flh.lat(),
-                                        flh.lon(), f107, f107A, ap, plg)) *
-      pd[3][0];
-  const double s = g0 / (tinf - tlb);
+  const double tlb = ptm[1] *
+                     (1.0 + globe7(pd[3], dt, doy, sec, flh.lon(), f107, f107A,
+                                   ap, plg, apt)) *
+                     pd[3][0];
+
+  const double s = g0 / (temperatures[0] - tlb);
 
   double meso_tn1[5];
   double meso_tn2[4];
@@ -75,22 +78,22 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
    */
   if (altitude < 300.0) {
     meso_tn1[1] = ptm[6] * ptl[0][0] /
-                  (1.0 - glob7s(ptl[0], tloc, doy, sec, flh.lat(), flh.lon(),
-                                f107, f107A, ap, plg));
+                  (1.0 - glob7s(ptl[0], dt, doy, sec, flh.lon(), f107, f107A,
+                                ap, plg, apt));
     meso_tn1[2] = ptm[2] * ptl[1][0] /
-                  (1.0 - glob7s(ptl[1], tloc, doy, sec, flh.lat(), flh.lon(),
-                                f107, f107A, ap, plg));
+                  (1.0 - glob7s(ptl[1], dt, doy, sec, flh.lon(), f107, f107A,
+                                ap, plg, apt));
     meso_tn1[3] = ptm[7] * ptl[2][0] /
-                  (1.0 - glob7s(ptl[2], tloc, doy, sec, flh.lat(), flh.lon(),
-                                f107, f107A, ap, plg));
+                  (1.0 - glob7s(ptl[2], dt, doy, sec, flh.lon(), f107, f107A,
+                                ap, plg, apt));
     meso_tn1[4] = ptm[4] * ptl[3][0] /
-                  (1.0 - glob7s(ptl[3], tloc, doy, sec, flh.lat(), flh.lon(),
-                                f107, f107A, ap, plg));
-    meso_tgn1[1] = ptm[8] * pma[8][0] *
-                   (1.0 + glob7s(pma[8], tloc, doy, sec, flh.lat(), flh.lon(),
-                                 f107, f107A, ap, plg)) *
-                   meso_tn1[4] * meso_tn1[4] /
-                   (std::pow((ptm[4] * ptl[3][0]), 2.0));
+                  (1.0 - glob7s(ptl[3], dt, doy, sec, flh.lon(), f107, f107A,
+                                ap, plg, apt));
+    meso_tgn1[1] =
+        ptm[8] * pma[8][0] *
+        (1.0 +
+         glob7s(pma[8], dt, doy, sec, flh.lon(), f107, f107A, ap, plg, apt)) *
+        meso_tn1[4] * meso_tn1[4] / (std::pow((ptm[4] * ptl[3][0]), 2.0));
   } else {
     meso_tn1[1] = ptm[6] * ptl[0][0];
     meso_tn1[2] = ptm[2] * ptl[1][0];
@@ -101,33 +104,38 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
   }
 
   /* N2 variation factor at Zlb */
-  const double g28 = dso::nrlmsise_impl::globe7(pd[2], tloc, doy, sec, flh.lat(), flh.lon(), f107, f107A, ap, plg);
+  const double g28 =
+      globe7(pd[2], dt, doy, sec, flh.lon(), f107, f107A, ap, plg, apt);
 
   /* VARIATION OF TURBOPAUSE HEIGHT */
-  zhf = pdl[1][24] * (1.0 + pdl[0][24] * std::sin(flh.lat()) *
-                                std::cos(dr * (doy - pt[13])));
+  const double zhf = pdl[1][24] * (1.0 + pdl[0][24] * std::sin(flh.lat()) *
+                                             std::cos(dr * (doy - pt[13])));
   const double xmm = pdm[2][4];
   const double z = altitude;
   double tz;
 
   /**** N2 DENSITY ****/
+  double zhm28, b28;
   {
     /* Diffusive density at Zlb */
     const double db28 = pdm[2][0] * std::exp(g28) * pd[2][0];
     /* Diffusive density at Alt */
-    densities[2] = densu(z, db28, tinf, tlb, 28.0, alpha[2], temperatures[1],
-                         ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+    densities[2] =
+        densu(flh.lat(), z, db28, temperatures[0], tlb, 28.0, alpha[2],
+              temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
     if (z <= altl[2]) {
       /* Turbopause */
       const double zh28 = pdm[2][2] * zhf;
-      const double zhm28 = pdm[2][3] * pdl[1][5];
+      zhm28 = pdm[2][3] * pdl[1][5];
       const double xmd = 28.0 - xmm;
       /* Mixed density at Zlb */
-      const double b28 = densu(zh28, db28, tinf, tlb, xmd, (alpha[2] - 1.0), tz,
-                               ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      b28 =
+          densu(flh.lat(), zh28, db28, temperatures[0], tlb, xmd,
+                (alpha[2] - 1.0), tz, ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       /*  Mixed density at Alt */
-      const double dm28 = densu(z, b28, tinf, tlb, xmm, alpha[2], tz, ptm[5],
-                                s, mn1, zn1, meso_tn1, meso_tgn1);
+      const double dm28 =
+          densu(flh.lat(), z, b28, temperatures[0], tlb, xmm, alpha[2], tz,
+                ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       /*  Net density at Alt */
       densities[2] = dnet(densities[2], dm28, zhm28, xmm, 28.0);
     }
@@ -135,28 +143,31 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
 
   /**** HE DENSITY ****/
   {
-    /*   Density variation factor at Zlb */
-    const double g4 = globe7(pd[0], tloc, doy, sec, flh.lat(), flh.lon(), f107, f107A, ap, plg);
-    /*  Diffusive density at Zlb */
+    /* Density variation factor at Zlb */
+    const double g4 =
+        globe7(pd[0], dt, doy, sec, flh.lon(), f107, f107A, ap, plg);
+    /* Diffusive density at Zlb */
     const double db04 = pdm[0][0] * std::exp(g4) * pd[0][0];
-    /*  Diffusive density at Alt */
-    densities[0] = densu(z, db04, tinf, tlb, 4., alpha[0], temperatures[1],
-                         ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+    /* Diffusive density at Alt */
+    densities[0] =
+        densu(flh.lat(), z, db04, temperatures[0], tlb, 4., alpha[0],
+              temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
     if (z < altl[0]) {
-      /*  Turbopause */
+      /* Turbopause */
       const double zh04 = pdm[0][2];
-      /*  Mixed density at Zlb */
-      const double b04 =
-          densu(zh04, db04, tinf, tlb, 4. - xmm, alpha[0] - 1., temperatures[1],
-                ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
-      /*  Mixed density at Alt */
-      const double dm04 = densu(z, b04, tinf, tlb, xmm, 0., temperatures[1],
-                                ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      /* Mixed density at Zlb */
+      const double b04 = densu(flh.lat(), zh04, db04, temperatures[0], tlb,
+                               4. - xmm, alpha[0] - 1., temperatures[1], ptm[5],
+                               s, mn1, zn1, meso_tn1, meso_tgn1);
+      /* Mixed density at Alt */
+      const double dm04 =
+          densu(flh.lat(), z, b04, temperatures[0], tlb, xmm, 0.,
+                temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       const double zhm04 = zhm28;
-      /*  Net density at Alt */
+      /* Net density at Alt */
       densities[0] = dnet(densities[0], dm04, zhm04, xmm, 4.);
-      /*  Correction to specified mixing ratio at ground */
-      const double rl = log(b28 * pdm[0][1] / b04);
+      /* Correction to specified mixing ratio at ground */
+      const double rl = std::log(b28 * pdm[0][1] / b04);
       const double zc04 = pdm[0][4] * pdl[1][0];
       const double hc04 = pdm[0][5] * pdl[1][1];
       /*  Net density corrected at Alt */
@@ -167,22 +178,25 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
   /**** O DENSITY ****/
   {
     /*  Density variation factor at Zlb */
-    const double g16 = globe7(pd[1], tloc, doy, sec, flh.lat(), flh.lon(), f107, f107A, ap, plg);
+    const double g16 =
+        globe7(pd[1], dt, doy, sec, flh.lon(), f107, f107A, ap, plg);
     /*  Diffusive density at Zlb */
     const double db16 = pdm[1][0] * std::exp(g16) * pd[1][0];
     /*   Diffusive density at Alt */
-    densities[1] = densu(z, db16, tinf, tlb, 16., alpha[1], temperatures[1],
-                         ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+    densities[1] =
+        densu(flh.lat(), z, db16, temperatures[0], tlb, 16., alpha[1],
+              temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
     if (z <= altl[1]) {
       /*   Turbopause */
       const double zh16 = pdm[1][2];
       /*  Mixed density at Zlb */
-      const double b16 =
-          densu(zh16, db16, tinf, tlb, 16.0 - xmm, (alpha[1] - 1.0),
-                temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      const double b16 = densu(flh.lat(), zh16, db16, temperatures[0], tlb,
+                               16.0 - xmm, (alpha[1] - 1.0), temperatures[1],
+                               ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       /*  Mixed density at Alt */
-      const double dm16 = densu(z, b16, tinf, tlb, xmm, 0., temperatures[1],
-                                ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      const double dm16 =
+          densu(flh.lat(), z, b16, temperatures[0], tlb, xmm, 0.,
+                temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       const double zhm16 = zhm28;
       /*  Net density at Alt */
       densities[1] = dnet(densities[1], dm16, zhm16, xmm, 16.);
@@ -204,22 +218,25 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
   /**** O2 DENSITY ****/
   {
     /*   Density variation factor at Zlb */
-    const double g32 = globe7(pd[4], tloc, doy, sec, flh.lat(), flh.lon(), f107, f107A, ap, plg);
+    const double g32 =
+        globe7(pd[4], dt, doy, sec, flh.lon(), f107, f107A, ap, plg);
     /*  Diffusive density at Zlb */
     const double db32 = pdm[3][0] * std::exp(g32) * pd[4][0];
     /*   Diffusive density at Alt */
-    densities[3] = densu(z, db32, tinf, tlb, 32., alpha[3], temperatures[1],
-                         ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+    densities[3] =
+        densu(flh.lat(), z, db32, temperatures[0], tlb, 32., alpha[3],
+              temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
     if (z <= altl[3]) {
       /*   Turbopause */
       const double zh32 = pdm[3][2];
       /*  Mixed density at Zlb */
-      const double b32 =
-          densu(zh32, db32, tinf, tlb, 32. - xmm, alpha[3] - 1.,
-                temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      const double b32 = densu(flh.lat(), zh32, db32, temperatures[0], tlb,
+                               32. - xmm, alpha[3] - 1., temperatures[1],
+                               ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       /*  Mixed density at Alt */
-      const double dm32 = densu(z, b32, tinf, tlb, xmm, 0., temperatures[1],
-                                ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      const double dm32 =
+          densu(flh.lat(), z, b32, temperatures[0], tlb, xmm, 0.,
+                temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       const double zhm32 = zhm28;
       /*  Net density at Alt */
       densities[3] = dnet(densities[3], dm32, zhm32, xmm, 32.);
@@ -242,22 +259,25 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
   /**** AR DENSITY ****/
   {
     /*   Density variation factor at Zlb */
-    const double g40 = globe7(pd[5], tloc, doy, sec, flh.lat(), flh.lon(), f107, f107A, ap, plg);
+    const double g40 =
+        globe7(pd[5], dt, doy, sec, flh.lon(), f107, f107A, ap, plg);
     /*  Diffusive density at Zlb */
     const double db40 = pdm[4][0] * std::exp(g40) * pd[5][0];
     /*   Diffusive density at Alt */
-    densities[4] = densu(z, db40, tinf, tlb, 40., alpha[4], temperatures[1],
-                         ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+    densities[4] =
+        densu(flh.lat(), z, db40, temperatures[0], tlb, 40., alpha[4],
+              temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
     if (z <= altl[4]) {
       /*   Turbopause */
       const double zh40 = pdm[4][2];
       /*  Mixed density at Zlb */
-      const double b40 =
-          densu(zh40, db40, tinf, tlb, 40. - xmm, alpha[4] - 1.,
-                temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      const double b40 = densu(flh.lat(), zh40, db40, temperatures[0], tlb,
+                               40. - xmm, alpha[4] - 1., temperatures[1],
+                               ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       /*  Mixed density at Alt */
-      const double dm40 = densu(z, b40, tinf, tlb, xmm, 0., temperatures[1],
-                                ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      const double dm40 =
+          densu(flh.lat(), z, b40, temperatures[0], tlb, xmm, 0.,
+                temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       const double zhm40 = zhm28;
       /*  Net density at Alt */
       densities[4] = dnet(densities[4], dm40, zhm40, xmm, 40.);
@@ -273,22 +293,25 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
   /**** HYDROGEN DENSITY ****/
   {
     /*   Density variation factor at Zlb */
-    const double g1 = globe7(pd[6], tloc, doy, sec, flh.lat(), flh.lon(), f107, f107A, ap, plg);
+    const double g1 =
+        globe7(pd[6], dt, doy, sec, flh.lon(), f107, f107A, ap, plg);
     /*  Diffusive density at Zlb */
     const double db01 = pdm[5][0] * std::exp(g1) * pd[6][0];
     /*   Diffusive density at Alt */
-    densities[6] = densu(z, db01, tinf, tlb, 1., alpha[6], temperatures[1],
-                         ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+    densities[6] =
+        densu(flh.lat(), z, db01, temperatures[0], tlb, 1., alpha[6],
+              temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
     if (z <= altl[6]) {
       /*   Turbopause */
       const double zh01 = pdm[5][2];
       /*  Mixed density at Zlb */
-      const double b01 =
-          densu(zh01, db01, tinf, tlb, 1. - xmm, alpha[6] - 1., temperatures[1],
-                ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      const double b01 = densu(flh.lat(), zh01, db01, temperatures[0], tlb,
+                               1. - xmm, alpha[6] - 1., temperatures[1], ptm[5],
+                               s, mn1, zn1, meso_tn1, meso_tgn1);
       /*  Mixed density at Alt */
-      const double dm01 = densu(z, b01, tinf, tlb, xmm, 0., temperatures[1],
-                                ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      const double dm01 =
+          densu(flh.lat(), z, b01, temperatures[0], tlb, xmm, 0.,
+                temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       const double zhm01 = zhm28;
       /*  Net density at Alt */
       densities[6] = dnet(densities[6], dm01, zhm01, xmm, 1.);
@@ -310,22 +333,25 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
   /**** ATOMIC NITROGEN DENSITY ****/
   {
     /*   Density variation factor at Zlb */
-    const double g14 = globe7(pd[7], tloc, doy, sec, flh.lat(), flh.lon(), f107, f107A, ap, plg);
+    const double g14 =
+        globe7(pd[7], dt, doy, sec, flh.lon(), f107, f107A, ap, plg);
     /*  Diffusive density at Zlb */
     const double db14 = pdm[6][0] * std::exp(g14) * pd[7][0];
     /*   Diffusive density at Alt */
-    densities[7] = densu(z, db14, tinf, tlb, 14., alpha[7], temperatures[1],
-                         ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+    densities[7] =
+        densu(flh.lat(), z, db14, temperatures[0], tlb, 14., alpha[7],
+              temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
     if (z <= altl[7]) {
       /*   Turbopause */
       const double zh14 = pdm[6][2];
       /*  Mixed density at Zlb */
-      const double b14 =
-          densu(zh14, db14, tinf, tlb, 14. - xmm, alpha[7] - 1.,
-                temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      const double b14 = densu(flh.lat(), zh14, db14, temperatures[0], tlb,
+                               14. - xmm, alpha[7] - 1., temperatures[1],
+                               ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       /*  Mixed density at Alt */
-      const double dm14 = densu(z, b14, tinf, tlb, xmm, 0., temperatures[1],
-                                ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+      const double dm14 =
+          densu(flh.lat(), z, b14, temperatures[0], tlb, xmm, 0.,
+                temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
       const double zhm14 = zhm28;
       /*  Net density at Alt */
       densities[7] = dnet(densities[7], dm14, zhm14, xmm, 14.);
@@ -335,10 +361,10 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
       const double hc14 = pdm[6][5] * pdl[0][1];
       const double zc14 = pdm[6][4] * pdl[0][0];
       densities[7] *= ccor(z, rl, hc14, zc14);
-      /*   Chemistry correction */
-      cosnt double hcc14 = pdm[6][7] * pdl[0][4];
-      cosnt double zcc14 = pdm[6][6] * pdl[0][3];
-      cosnt double rc14 = pdm[6][3] * pdl[0][5];
+      /* Chemistry correction */
+      const double hcc14 = pdm[6][7] * pdl[0][4];
+      const double zcc14 = pdm[6][6] * pdl[0][3];
+      const double rc14 = pdm[6][3] * pdl[0][5];
       /*  Net density corrected at Alt */
       densities[7] *= ccor(z, rc14, hcc14, zcc14);
     }
@@ -346,15 +372,18 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
 
   /**** Anomalous OXYGEN DENSITY ****/
   {
-    const double g16h = globe7(pd[8], tloc, doy, sec, flh.lat(), flh.lon(), f107, f107A, ap, plg);
+    const double g16h =
+        globe7(pd[8], dt, doy, sec, flh.lon(), f107, f107A, ap, plg);
     const double db16h = pdm[7][0] * std::exp(g16h) * pd[8][0];
     const double tho = pdm[7][9] * pdl[0][6];
-    const double dd = densu(z, db16h, tho, tho, 16., alpha[8], temperatures[1],
-                            ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
+    const double dd =
+        densu(flh.lat(), z, db16h, tho, tho, 16., alpha[8], temperatures[1],
+              ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
     const double zsht = pdm[7][5];
     const double zmho = pdm[7][4];
     const double zsho = scalh(zmho, 16.0, tho);
-    densities[8] = dd * std::exp(-zsht / zsho * (std::exp(-(z - zmho) / zsht) - 1.));
+    densities[8] =
+        dd * std::exp(-zsht / zsho * (std::exp(-(z - zmho) / zsht) - 1.));
   }
 
   /* total mass density */
@@ -364,6 +393,6 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
                   40.0 * densities[4] + densities[6] + 14.0 * densities[7]);
 
   /* temperature */
-  return densu(altitude, 1.0, tinf, tlb, 0.0, 0.0, temperatures[1], ptm[5], s,
-               mn1, zn1, meso_tn1, meso_tgn1);
+  return densu(flh.lat(), altitude, 1.0, temperatures[0], tlb, 0.0, 0.0,
+               temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1);
 }

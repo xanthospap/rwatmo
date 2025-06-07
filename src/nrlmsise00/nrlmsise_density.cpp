@@ -1,10 +1,12 @@
-#include "nrlmsise.hpp"
 #include "geodesy/transformations.hpp"
+#include "nrlmsise.hpp"
 
-double dso::Nrlmsise00::density(Eigen::Vector3d rsat, dso::MjdEpoch &tt, const SpaceWeatherData &data) {
+double dso::Nrlmsise00::density(Eigen::Vector3d rsat, dso::MjdEpoch &tt,
+                                const SpaceWeatherData &data) {
 
   /* cartesian to geodetic satellite position */
-  const auto llh = dso::cartesian2geodetic<dso::Ellipsoid::grs80>(dso::CartesianCrdConstView(rsat));
+  const auto llh = dso::cartesian2geodetic<dso::ellipsoid::grs80>(
+      dso::CartesianCrdConstView(rsat));
 
   /* temperatures and densities */
   double densities[9];

@@ -1,17 +1,13 @@
 #include "nrlmsise.hpp"
 
-namespace {
-zeta_(double zz, double zl) noexcept {
-  return ((zz - zl) * (re + zl) / (re + zz));
-}
-} // namespace
-
-double densm(double alt, double d0, double xm, double &tz, int mn3, const double *zn3,
-             const  double *tn3, const double *tgn3, int mn2, const double *const zn2,
-             const double *tn2, const double *tgn2, double *__restrict__ u) noexcept {
+double dso::Nrlmsise00::densm(double alt, double d0, double xm, double &tz,
+                              int mn3, const double *zn3, const double *tn3,
+                              const double *tgn3, int mn2,
+                              const double *const zn2, const double *tn2,
+                              const double *tgn2,
+                              double *__restrict__ u) noexcept {
   /* Calculate Temperature and Density Profiles for lower atmos. */
   double xs[10], ys[10], y2out[10];
-  constexpr double rgas = 831.4;
   if (alt > zn2[0]) {
     if (xm == 0.0)
       return tz;
@@ -31,9 +27,9 @@ double densm(double alt, double d0, double xm, double &tz, int mn3, const double
     const double zgdif = zeta_(z2, z1);
 
     /* set up spline nodes */
-    for (k = 0; k < mn; k++) {
-      xs[k] = zeta_(zn2[k], z1) / zgdif;
-      ys[k] = 1.0 / tn2[k];
+    for (int i = 0; i < mn; i++) {
+      xs[i] = zeta_(zn2[i], z1) / zgdif;
+      ys[i] = 1.0 / tn2[i];
     }
     const double yd1 = -tgn2[0] / (t1 * t1) * zgdif;
     const double yd2 =
@@ -72,7 +68,7 @@ double densm(double alt, double d0, double xm, double &tz, int mn3, const double
   /* troposhere / stratosphere temperature */
   {
     const double z = alt;
-    const double mn = mn3;
+    const int mn = mn3;
     const double z1 = zn3[0];
     const double z2 = zn3[mn - 1];
     const double t1 = tn3[0];
@@ -81,9 +77,9 @@ double densm(double alt, double d0, double xm, double &tz, int mn3, const double
     const double zgdif = zeta_(z2, z1);
 
     /* set up spline nodes */
-    for (k = 0; k < mn; k++) {
-      xs[k] = zeta(zn3[k], z1) / zgdif;
-      ys[k] = 1.0 / tn3[k];
+    for (int i = 0; i < mn; i++) {
+      xs[i] = zeta_(zn3[i], z1) / zgdif;
+      ys[i] = 1.0 / tn3[i];
     }
     const double yd1 = -tgn3[0] / (t1 * t1) * zgdif;
     const double yd2 =

@@ -1,16 +1,14 @@
 #ifndef __DSO_NRLMSISE00_UPPERATMO_HPP__
 #define __DSO_NRLMSISE00_UPPERATMO_HPP__
 
-#include <cmath>
+#include "datetime/calendar.hpp"
+#include "eigen3/Eigen/Eigen"
+#include "geodesy/transformations.hpp"
+#include "geodesy/units.hpp"
 #include <cassert>
-
+#include <cmath>
 
 namespace dso {
-
-namespace nrlmsise_impl {
-double globe7(double *p, double tloc, double doy, double sec, double glat, double glon, double f107, double f107A, const double *const ap) noexcept;
-double globe7s(double *p, double tloc, double doy, double sec, double glat, double glon, double f107, double f107A, const double *const ap, const double* plg[]) noexcept;
-} /* namespace nrlmsise_impl */
 
 class SpaceWeatherData {
   double f107;
@@ -21,20 +19,44 @@ class SpaceWeatherData {
 
 class Nrlmsise00 {
 
-  double density(Eigen::Vector3d rsat, dso::MjdEpoch &tt, const SpaceWeatherData &data);
+public:
+  double density(Eigen::Vector3d rsat, dso::MjdEpoch &tt,
+                 const SpaceWeatherData &data);
 
+private:
+  static constexpr const double rgas = 831.4;
+  static constexpr const double dr = dso::D2PI / 365e0; // days to radians
+
+  struct DataTrigs {
+    /** @brief Holds trigs to avoid recomputing in glob7 and glob7s.
+     *
+     * @param[in] glat Geodetic Latitude in [rad]
+     * @param[in] tloc Local solar time in hours (of day)
+     */
+    DataTrigs(double glat_, double tloc_) noexcept
+        : glat(glat_), tloc(tloc_), c(std::sin(glat)), s(std::cos(glat)),
+          stloc(std::sin(hours2rad(tloc))), ctloc(std::cos(hours2rad(tloc))),
+          s2tloc(std::sin(2e0 * hours2rad(tloc))),
+          c2tloc(std::cos(2e0 * hours2rad(tloc))),
+          s3tloc(std::sin(3e0 * hours2rad(tloc))),
+          c3tloc(std::cos(3e0 * hours2rad(tloc))) {}
+    double glat, tloc, c, s, stloc, ctloc, s2tloc, c2tloc, s3tloc, c3tloc;
+  }; /* DataTrigs */
+
+  double zeta_(double zz, double zl) const noexcept {
+    return ((zz - zl) * (re + zl) / (re + zz));
+  }
   /* returns gv
    * computes rref
    */
-  static double glatf(double lat, double &reff) noexcept {
-    const double dgtr = 1.74533e-2;
-    const double c2 = std::cos(2e0 * dgtr * lat);
+  double glatf(double lat, double &reff) const noexcept {
+    const double c2 = std::cos(2e0 * lat);
     const double gv = 980.616 * (1e0 - 0.0026373 * c2);
     reff = 2e0 * gv / (3.085462e-6 + 2.27e-9 * c2) * 1.0e-5;
     return gv;
   }
 
-  static double ccor(double alt, double r, double h1, double zh) noexcept {
+  double ccor(double alt, double r, double h1, double zh) const noexcept {
     /* chemistry/dissociation correction for msis models
      *  alt - altitude
      *  r - target ratio
@@ -51,8 +73,8 @@ class Nrlmsise00 {
     return std::exp(r / (1.0 + std::exp(e)));
   }
 
-  static double ccor(double alt, double r, double h1, double zh,
-                     double h2) noexcept {
+  double ccor(double alt, double r, double h1, double zh,
+              double h2) const noexcept {
     /* chemistry/dissociation correction for msis models
      *  alt - altitude
      *  r - target ratio
@@ -71,13 +93,13 @@ class Nrlmsise00 {
     return std::exp(r / (1e0 + 5e-1 * (std::exp(e1) + std::exp(e2))));
   }
 
-  static double scalh(double alt, double xm, double temp) noexcept {
-    constexpr const double rgas = 831.4;
+  /* TODO what is gsurf? */
+  double scalh(double alt, double xm, double temp) const noexcept {
     return rgas * temp / ((gsurf / (std::pow((1e0 + alt / re), 2e0))) * xm);
   }
 
-  static double dnet(double dd, double dm, double zhm, double xmm,
-                     double xm) noexcept {
+  double dnet(double dd, double dm, double zhm, double xmm,
+              double xm) const noexcept {
     /*       TURBOPAUSE CORRECTION FOR MSIS MODELS
      *        Root mean density
      *         DD - diffusive density
@@ -104,22 +126,26 @@ class Nrlmsise00 {
   void spline(const double *__restrict__ x, const double *__restrict__ y, int n,
               double yp1, double ypn, const double *__restrict__ y2,
               double *__restrict__ u) noexcept;
-  double densu(double alt, double dlb, double tinf, double tlb, double xm,
-               double alpha, double &tz, double zlb, double s2, int mn1,
-               const double *zn1, double *tn1, double *tgn1);
-  double densm(double alt, double d0, double xm, double &tz, int mn3,
-               const double *zn3, const double *tn3, const double *tgn3,
-               int mn2, const double *const zn2, const double *tn2,
-               const double *tgn2, double *__restrict__ u) noexcept;
-               
-  double gts7(const dso::MjdEpoch &t, double lon, double lat, double altitude, double f107A, double f107, const double *const ap, double *densities, double *temperatures);
-  void gtd7(const dso::MjdEpoch& tt, const dso::GeodeticCrd &flh,double f107A, double f107, const double* const ap, double* densities, double* temperatures);
+  double densu(double lat, double alt, double dlb, double tinf, double tlb,
+               double xm, double alpha, double &tz, double zlb, double s2,
+               int mn1, const double *zn1, double *tn1, double *tgn1,
+               double *u) const noexcept;
+  double gts7(const dso::MjdEpoch &t, const dso::GeodeticCrd &flh, double f107A,
+              double f107, const double *const ap, double *densities,
+              double *temperatures);
+  double globe7(const double *const p, const DataTrigs &dt, double doy,
+                double sec, double glon, double f107, double f107A,
+                const double *const ap, double *plg[],
+                double *apt) const noexcept;
+  double globe7s(const double *p, DataTrigs &dt, double doy, double sec,
+                 double glon, double f107, double f107A, const double *const ap,
+                 const double *plg[], double *apt) const noexcept;
 
   /* POWER7 */
-  static constexpr double pt[150]; // used by glob7
-  static constexpr double pd[9][150]; // 
-  static constexpr double ps[150]; // used by glob7
-  static constexpr double pdl[2][25]; // used by gts7
+  static constexpr double pt[150];
+  static constexpr double pd[9][150];
+  static constexpr double ps[150];
+  static constexpr double pdl[2][25];
   static constexpr double ptl[4][100];
   static constexpr double pma[10][100];
   static constexpr double sam[100];
@@ -128,20 +154,6 @@ class Nrlmsise00 {
   static constexpr double pdm[8][10];
   static constexpr double pavgm[10];
 
-  /* TODO why are these here? */
-  double gsurf;
-  double re;
-  /* GTS3C */
-  double dd;
-  /* DMIX */
-  double dm04, dm16, dm28, dm32, dm40, dm01, dm14;
-  /* LPOLY */
-  double dfa;
-  double plg[4][9];
-  double ctloc, stloc;
-  double c2tloc, s2tloc;
-  double s3tloc, c3tloc;
-  double apdf, apt[4];
 }; /* Nrlmsise00 */
 } /* namespace dso */
 
