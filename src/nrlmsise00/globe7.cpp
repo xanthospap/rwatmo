@@ -26,12 +26,12 @@ double sg0(double ex, const double *const p, const double *const ap) {
 }
 } // namespace
 
-double dso::Nrlmsise00::globe7(const double *const p,
+double dso::Nrlmsise00::glob7(const double *const p,
                                const dso::Nrlmsise00::DataTrigs &dt,
                                /*double tloc,*/ double doy, double sec,
                                /*double glat,*/ double glon, double f107,
                                double f107A, const double *const ap,
-                               double *plg[], double *apt) const noexcept {
+                               double plg[4][9], double *apt) const noexcept {
   /* CALCULATE G(L) FUNCTION Upper Thermosphere Parameters */
   double t[15] = {0e0};
 
@@ -70,12 +70,12 @@ double dso::Nrlmsise00::globe7(const double *const p,
     plg[3][6] = (11.0 * c * plg[3][5] - 8. * plg[3][4]) / 3.0;
   }
 
-  const double stloc = dt.stloc;   // std::sin(hr * tloc);
-  const double ctloc = dt.ctloc;   // std::cos(hr * tloc);
-  const double s2tloc = dt.s2tloc; // std::sin(2.0 * hr * tloc);
-  const double c2tloc = dt.c2tloc; // std::cos(2.0 * hr * tloc);
-  const double s3tloc = dt.s3tloc; // std::sin(3.0 * hr * tloc);
-  const double c3tloc = dt.c3tloc; // std::cos(3.0 * hr * tloc);
+  const double stloc = dt.stloc;
+  const double ctloc = dt.ctloc;
+  const double s2tloc = dt.s2tloc;
+  const double c2tloc = dt.c2tloc;
+  const double s3tloc = dt.s3tloc;
+  const double c3tloc = dt.c3tloc;
 
   const double cd32 = std::cos(dr * (doy - p[31]));
   const double cd18 = std::cos(2.0 * dr * (doy - p[17]));

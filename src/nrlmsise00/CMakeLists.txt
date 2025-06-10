@@ -1,0 +1,9 @@
+target_sources(rwatmo
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/nrlmsise00/consts.cpp
+    ${CMAKE_SOURCE_DIR}/src/nrlmsise00/densu.cpp
+    ${CMAKE_SOURCE_DIR}/src/nrlmsise00/globe7.cpp
+    ${CMAKE_SOURCE_DIR}/src/nrlmsise00/globe7s.cpp
+    ${CMAKE_SOURCE_DIR}/src/nrlmsise00/gts7.cpp
+    ${CMAKE_SOURCE_DIR}/src/nrlmsise00/nrlmsise_density.cpp
+)

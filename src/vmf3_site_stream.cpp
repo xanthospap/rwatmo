@@ -120,7 +120,7 @@ int dso::Vmf3SiteStream::forward_search(const dso::MjdEpoch &t) noexcept {
       if (!error)
         t1 = mstream.current_epoch();
       return error;
-    } else if (t.diff<dso::DateTimeDifferenceType::FractionalDays>(ct) > .74) {
+    } else if (t.diff<dso::DateTimeDifferenceType::FractionalDays>(ct).days() > .74) {
       /* too far away, no need to parse the block */
       error += mstream.skip_block();
     } else {
@@ -209,8 +209,8 @@ int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t,
   }
 
   /* linear interpolation for all data */
-  const auto dt10 = t1.diff<dso::DateTimeDifferenceType::FractionalDays>(t0);
-  const auto dt0 = t.diff<dso::DateTimeDifferenceType::FractionalDays>(t0);
+  const auto dt10 = t1.diff<dso::DateTimeDifferenceType::FractionalDays>(t0).days();
+  const auto dt0 = t.diff<dso::DateTimeDifferenceType::FractionalDays>(t0).days();
   const auto dt1 = t1.diff<dso::DateTimeDifferenceType::FractionalDays>(t);
 
   const double *y0 = mdata[index].data();
@@ -240,7 +240,7 @@ int dso::Vmf3SiteStream::site_vmf3(
     fprintf(stderr,
             "[ERROR] Failed interpolating VMF3 data for site %s at %.6f "
             "(traceback: %s)\n",
-            t.imjd() + t.fractional_days(), __func__);
+            t.imjd() + t.fractional_days().days(), __func__);
     return 1;
   }
 

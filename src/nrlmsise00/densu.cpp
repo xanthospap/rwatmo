@@ -1,4 +1,5 @@
 #include "nrlmsise.hpp"
+#include "rwatmo_math.hpp"
 
 double dso::Nrlmsise00::densu(double lat, double alt, double dlb, double tinf,
                               double tlb, double xm, double alpha, double &tz,
@@ -13,9 +14,12 @@ double dso::Nrlmsise00::densu(double lat, double alt, double dlb, double tinf,
 
   /* joining altitudes of Bates and spline */
   const double z = (alt > zn1[0]) ? alt : zn1[0];
+  
+  double re;
+  const double gsurf = glatf(lat, re);
 
   /* geopotential altitude difference from ZLB */
-  const double zg2 = zeta_(z, zlb);
+  const double zg2 = ((z - zlb) * (re + zlb) / (re + z));
 
   const double tt = tinf - (tinf - tlb) * std::exp(-s2 * zg2);
 
@@ -40,11 +44,11 @@ double dso::Nrlmsise00::densu(double lat, double alt, double dlb, double tinf,
     tn1[0] = tt;
     const double z = (alt > zn1[mn1 - 1]) ? alt : zn1[mn1 - 1];
     /* geopotental difference from z1 */
-    const double zg = zeta_(z, zn1[0]);
-    zgdif = zeta_(zn1[mn1 - 1], zn1[0]);
+    const double zg = ((z - zn1[0]) * (re + zn1[0]) / (re + z));
+    zgdif = ((zn1[mn1-1] - zn1[0]) * (re + zn1[0]) / (re + zn1[mn1-1]));
     /* set up spline nodes */
     for (int i = 0; i < mn1; i++) {
-      xs[i] = zeta_(zn1[i], zn1[0]) / zgdif;
+      xs[i] = ((zn1[i] - zn1[0]) * (re + zn1[0]) / (re + zn1[i])) / zgdif;
       ys[i] = 1.0 / tn1[i];
     }
     /* end node derivatives */
@@ -62,8 +66,6 @@ double dso::Nrlmsise00::densu(double lat, double alt, double dlb, double tinf,
     return tz;
 
   /* calculate density above za */
-  double re;
-  const double gsurf = glatf(lat, re);
   double glb = gsurf / std::pow((1.0 + zlb / re), 2.0);
   double gamma = xm * glb / (s2 * rgas * tinf);
   double expl = std::exp(-s2 * gamma * zg2);

@@ -1,10 +1,10 @@
-#include "geodesy/units.hpp"
+#include "nrlmsise.hpp"
 
-double dso::Nrlmsise00::globe7s(const double *p, dso::Nrlmsise00::DataTrigs &dt,
+double dso::Nrlmsise00::glob7s(const double *p, dso::Nrlmsise00::DataTrigs &dt,
                                 double doy, double sec, double glon,
                                 double f107, double f107A,
-                                const double *const ap, const double *plg[],
-                                double *apt) const noexcept {
+                                const double *const apt, const double plg[4][9]
+                                ) const noexcept {
   /*    VERSION OF GLOBE FOR LOWER ATMOSPHERE 10/26/99
    */
   constexpr const double pset = 2.0;
@@ -20,7 +20,7 @@ double dso::Nrlmsise00::globe7s(const double *p, dso::Nrlmsise00::DataTrigs &dt,
   const double cd39 = std::cos(2.0 * dr * (doy - p[38]));
 
   /* F10.7 */
-  t[0] = p[21] * dfa;
+  t[0] = p[21] * (f107A-150e0);
 
   /* time independent */
   t[1] = p[1] * plg[0][2] + p[2] * plg[0][4] + p[22] * plg[0][6] +

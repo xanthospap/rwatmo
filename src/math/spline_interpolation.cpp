@@ -1,7 +1,7 @@
 #include <cassert>
-#include "nrlmsise.hpp"
+#include "rwatmo_math.hpp"
 
-double dso::Nrlmsise00::splini(const double *__restrict__ xa, const double *__restrict__ ya,
+double dso::splini(const double *__restrict__ xa, const double *__restrict__ ya,
               const double *__restrict__ y2a, int n, double x) noexcept {
   /*      INTEGRATE CUBIC SPLINE FUNCTION FROM XA(1) TO X
    *       XA,YA: ARRAYS OF TABULATED FUNCTION IN ASCENDING ORDER BY X
@@ -38,7 +38,7 @@ double dso::Nrlmsise00::splini(const double *__restrict__ xa, const double *__re
   return yi;
 }
 
-double dso::Nrlmsise00::splint(const double *__restrict__ xa, const double *__restrict__ ya,
+double dso::splint(const double *__restrict__ xa, const double *__restrict__ ya,
               const double *__restrict__ y2a, int n, double x) noexcept {
   /*      CALCULATE CUBIC SPLINE INTERP VALUE
    *       ADAPTED FROM NUMERICAL RECIPES BY PRESS ET AL.
@@ -50,9 +50,6 @@ double dso::Nrlmsise00::splint(const double *__restrict__ xa, const double *__re
    */
   int klo = 0;
   int khi = n - 1;
-  int k;
-  double h;
-  double a, b, yi;
 
   while ((khi - klo) > 1) {
     const int k = (khi + klo) / 2;
@@ -72,8 +69,8 @@ double dso::Nrlmsise00::splint(const double *__restrict__ xa, const double *__re
 }
 
 /* size of u is n*sizeof(double) */
-void dso::Nrlmsise00::spline(const double *__restrict__ x, const double *__restrict__ y, int n,
-            double yp1, double ypn, const double *__restrict__ y2,
+void dso::spline(const double *__restrict__ x, const double *__restrict__ y, int n,
+            double yp1, double ypn, double *__restrict__ y2,
             double *__restrict__ u) noexcept {
   /* CALCULATE 2ND DERIVATIVES OF CUBIC SPLINE INTERP FUNCTION
    * ADAPTED FROM NUMERICAL RECIPES BY PRESS ET AL
@@ -83,9 +80,6 @@ void dso::Nrlmsise00::spline(const double *__restrict__ x, const double *__restr
    *          >= 1E30 SIGNAL SIGNAL SECOND DERIVATIVE ZERO
    * Y2: OUTPUT ARRAY OF SECOND DERIVATIVES
    */
-  double sig, p, qn, un;
-  int i, k;
-
   if (yp1 > 0.99e30) {
     y2[0] = 0;
     u[0] = 0;
@@ -104,7 +98,7 @@ void dso::Nrlmsise00::spline(const double *__restrict__ x, const double *__restr
          (ypn - (y[n - 1] - y[n - 2]) / (x[n - 1] - x[n - 2]));
   }
 
-  for (i = 1; i < (n - 1); i++) {
+  for (int i = 1; i < (n - 1); i++) {
     const double sig = (x[i] - x[i - 1]) / (x[i + 1] - x[i - 1]);
     const double p = sig * y2[i - 1] + 2.0;
     y2[i] = (sig - 1.0) / p;
@@ -117,7 +111,7 @@ void dso::Nrlmsise00::spline(const double *__restrict__ x, const double *__restr
   }
 
   y2[n - 1] = (un - qn * u[n - 2]) / (qn * y2[n - 2] + 1.0);
-  for (k = n - 2; k >= 0; k--)
+  for (int k = n - 2; k >= 0; k--)
     y2[k] = y2[k] * y2[k + 1] + u[k];
 
   return;

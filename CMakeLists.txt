@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.1)
 
 project(
-  RwAtmo
+  rwatmo
   VERSION 1.0.1
   DESCRIPTION "Radio-Wave Atmosphere"
   LANGUAGES CXX)
@@ -17,11 +17,11 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   include(CTest)
   
   find_package(Doxygen)
-  if(Doxygen_FOUND)
-    add_subdirectory(doc)
-  else()
-    message(STATUS "Doxygen not found, not building docs")
-  endif()
+  #if(Doxygen_FOUND)
+  #  add_subdirectory(doc)
+  #else()
+  #  message(STATUS "Doxygen not found, not building docs")
+  #endif()
 
 endif()
 
@@ -30,6 +30,8 @@ endif()
 
 # The library
 add_subdirectory(src)
+add_subdirectory(src/nrlmsise00)
+add_subdirectory(src/math)
 
 # The tests
 add_subdirectory(test)

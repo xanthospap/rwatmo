@@ -1370,7 +1370,7 @@ dso::vmf3_details::Vmf3FullCoeffs::computeCoeffs(
     const dso::MjdEpoch &t) const noexcept {
   /* fractional day of year */
   const dso::ydoy_date yd(t.to_ydoy());
-  const double doy = yd.dy().as_underlying_type() + t.fractional_days();
+  const double doy = yd.dy().as_underlying_type() + t.fractional_days().days();
 
   constexpr const double pi = M_PI;
   dso::vmf3_details::Vmf3EmpiricalCoeffs vc;

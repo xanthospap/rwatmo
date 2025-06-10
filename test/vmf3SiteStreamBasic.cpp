@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
     if (vstream.set_at_epoch(t)) return 5;
     if (vstream.site_vmf3("SOCA", t, d)) return 3;
     printf("%.9f %.9f %.9f %.4f %.4f %.2f %.2f %.2f\n",
-           t.imjd() + t.fractional_days(), d.ah(), d.aw(), d.zhd(), d.zwd(),
+           t.imjd() + t.fractional_days().days(), d.ah(), d.aw(), d.zhd(), d.zwd(),
            d.pressure(), d.temperature(), d.water_vapour_pressure());
   }
 

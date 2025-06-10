@@ -10,7 +10,7 @@
 
 namespace dso {
 
-class SpaceWeatherData {
+struct SpaceWeatherData {
   double f107;
   double f107A;
   double Ap;
@@ -43,9 +43,6 @@ private:
     double glat, tloc, c, s, stloc, ctloc, s2tloc, c2tloc, s3tloc, c3tloc;
   }; /* DataTrigs */
 
-  double zeta_(double zz, double zl) const noexcept {
-    return ((zz - zl) * (re + zl) / (re + zz));
-  }
   /* returns gv
    * computes rref
    */
@@ -93,11 +90,6 @@ private:
     return std::exp(r / (1e0 + 5e-1 * (std::exp(e1) + std::exp(e2))));
   }
 
-  /* TODO what is gsurf? */
-  double scalh(double alt, double xm, double temp) const noexcept {
-    return rgas * temp / ((gsurf / (std::pow((1e0 + alt / re), 2e0))) * xm);
-  }
-
   double dnet(double dd, double dm, double zhm, double xmm,
               double xm) const noexcept {
     /*       TURBOPAUSE CORRECTION FOR MSIS MODELS
@@ -111,7 +103,7 @@ private:
      */
     assert((dm > 0) && (dd > 0));
     const double a = zhm / (xmm - xm);
-    const double ylog = a * log(dm / dd);
+    const double ylog = a * std::log(dm / dd);
     if (ylog < -10)
       return dd;
     if (ylog > 10)
@@ -119,13 +111,6 @@ private:
     return dd * std::pow((1.0 + std::exp(ylog)), (1.0 / a));
   }
 
-  double splini(const double *__restrict__ xa, const double *__restrict__ ya,
-                const double *__restrict__ y2a, int n, double x) noexcept;
-  double splint(const double *__restrict__ xa, const double *__restrict__ ya,
-                const double *__restrict__ y2a, int n, double x) noexcept;
-  void spline(const double *__restrict__ x, const double *__restrict__ y, int n,
-              double yp1, double ypn, const double *__restrict__ y2,
-              double *__restrict__ u) noexcept;
   double densu(double lat, double alt, double dlb, double tinf, double tlb,
                double xm, double alpha, double &tz, double zlb, double s2,
                int mn1, const double *zn1, double *tn1, double *tgn1,
@@ -133,26 +118,26 @@ private:
   double gts7(const dso::MjdEpoch &t, const dso::GeodeticCrd &flh, double f107A,
               double f107, const double *const ap, double *densities,
               double *temperatures);
-  double globe7(const double *const p, const DataTrigs &dt, double doy,
+  double glob7(const double *const p, const DataTrigs &dt, double doy,
                 double sec, double glon, double f107, double f107A,
-                const double *const ap, double *plg[],
+                const double *const ap, double plg[4][9],
                 double *apt) const noexcept;
-  double globe7s(const double *p, DataTrigs &dt, double doy, double sec,
-                 double glon, double f107, double f107A, const double *const ap,
-                 const double *plg[], double *apt) const noexcept;
+  double glob7s(const double *p, DataTrigs &dt, double doy, double sec,
+                 double glon, double f107, double f107A, const double *const apt,
+                 const double plg[4][9]) const noexcept;
 
   /* POWER7 */
-  static constexpr double pt[150];
-  static constexpr double pd[9][150];
-  static constexpr double ps[150];
-  static constexpr double pdl[2][25];
-  static constexpr double ptl[4][100];
-  static constexpr double pma[10][100];
-  static constexpr double sam[100];
+  static const double pt[150];
+  static const double pd[9][150];
+  static const double ps[150];
+  static const double pdl[2][25];
+  static const double ptl[4][100];
+  static const double pma[10][100];
+  static const double sam[100];
   /* LOWER7 */
-  static constexpr double ptm[10];
-  static constexpr double pdm[8][10];
-  static constexpr double pavgm[10];
+  static const double ptm[10];
+  static const double pdm[8][10];
+  static const double pavgm[10];
 
 }; /* Nrlmsise00 */
 } /* namespace dso */
