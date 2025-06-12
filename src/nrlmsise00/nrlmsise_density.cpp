@@ -2,7 +2,8 @@
 #include "nrlmsise.hpp"
 
 double dso::Nrlmsise00::density(Eigen::Vector3d rsat, dso::MjdEpoch &tt,
-                                const SpaceWeatherData &data) {
+                                const dso::Msise00Data &data)
+{
 
   /* cartesian to geodetic satellite position */
   const auto llh = dso::cartesian2geodetic<dso::ellipsoid::grs80>(

@@ -6,4 +6,5 @@ target_sources(rwatmo
     ${CMAKE_SOURCE_DIR}/src/nrlmsise00/globe7s.cpp
     ${CMAKE_SOURCE_DIR}/src/nrlmsise00/gts7.cpp
     ${CMAKE_SOURCE_DIR}/src/nrlmsise00/nrlmsise_density.cpp
+    ${CMAKE_SOURCE_DIR}/src/nrlmsise00/nrlmsise_data_hunter.cpp
 )

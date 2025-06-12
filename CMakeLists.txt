@@ -32,6 +32,7 @@ endif()
 add_subdirectory(src)
 add_subdirectory(src/nrlmsise00)
 add_subdirectory(src/math)
+add_subdirectory(src/spaceweather)
 
 # The tests
 add_subdirectory(test)

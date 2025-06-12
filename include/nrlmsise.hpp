@@ -1,31 +1,158 @@
 #ifndef __DSO_NRLMSISE00_UPPERATMO_HPP__
 #define __DSO_NRLMSISE00_UPPERATMO_HPP__
-
 #include "datetime/calendar.hpp"
 #include "eigen3/Eigen/Eigen"
 #include "geodesy/transformations.hpp"
 #include "geodesy/units.hpp"
+#include "space_weather.hpp"
 #include <cassert>
 #include <cmath>
 
 namespace dso {
 
-struct SpaceWeatherData {
-  double f107;
-  double f107A;
-  double Ap;
+struct Msise00Data {
+  double f107A; /* 81 day average of F10.7 flux (centered on doy) */
+  double f107;  /* daily F10.7 flux for previous day */
   double ap[7];
-}; /* SpaceWeatherData */
+  // 0 : daily AP
+  // 1 : 3 hr AP index for current time
+  // 2 : 3 hr AP index for 3 hrs before current time
+  // 3 : 3 hr AP index for 6 hrs before current time
+  // 4 : 3 hr AP index for 9 hrs before current time
+  // 5 : Average of eight 3 hr AP indicies from 12 to 33 hrs
+  //         prior to current time
+  // 6 : Average of eight 3 hr AP indicies from 36 to 57 hrs
+  //         prior to current time
+};
+
+class NrlmsiseDataHunter {
+public:
+  const Msise00Data &get_data(const MjdEpoch &tt) {
+    if (this->hunt(tt)) {
+      throw std::runtime_error(
+          "[ERROR] Failed collecting MSISE space weather data.\n");
+    }
+    return _lastdata;
+  }
+
+  void set_data_ptr(const std::vector<SpaceWeatherData> &data_ptr) noexcept {
+    _swdata = &data_ptr;
+    _lastepoch = MjdEpoch::min();
+  }
+  
+  const Msise00Data &msise_data() const noexcept {return _lastdata;}
+
+private:
+  /* seconds in a3-hour interval */
+  const long SEC_IN_3H = 60 * 60 * 3;
+  /* ptr to a SpaceWeatherData vector where we shall extract data from */
+  const std::vector<SpaceWeatherData> *_swdata{nullptr};
+  /* current index in the SpaceWeatherData vector */
+  int _ci = 0;
+  /* last epoch used to hunt data */
+  MjdEpoch _lastepoch{MjdEpoch::min()};
+  /* last Msise00Data acquired */
+  Msise00Data _lastdata{};
+
+  /* find index of 3-hour interval of given date, in range [0-8) */
+  int _3hidx(const MjdEpoch &tt) const noexcept {
+    const double sec_in_day = tt.seconds().seconds();
+    const int idx = static_cast<long>(sec_in_day) / SEC_IN_3H;
+    return idx;
+  }
+
+  /** @brief Collect Msise00Data for a given date, considering instance's state.
+   *
+   * By "considering instance's state" we mean that we will try to see if we
+   * have already called the function requesting data for an epoch close to
+   * the one we request here. If we can take advantage of that (re-use data
+   * and/or indexes) we will, else we will eventually just call get_data to
+   * do the job.
+   *
+   * This function virtually does the same as get_data but is optimized when
+   * requesting often data for epochs that are close.
+   *
+   * Note that after the function call, _ci will be set to the index of the
+   * record (within _swdata) that corresponds to the date tt, and _lastepoch
+   * will be set to tt. The collected data will be stores in the instance's
+   * _lastdata member.
+   *
+   * @param[in] tt The epoch of interest in [TT]
+   * @return Anything other than zero denotes an error.
+   */
+  [[nodiscard]] int hunt(const dso::MjdEpoch &tt);
+
+  /** @brief Fill in Msise00Data from an vector<SpaceWeatherData> given the
+   * needed indexes.
+   *
+   * This function will fill in the values in the data instance (Msise00Data)
+   * given that we wave a vector of SpaceWeatherData AND we know the index of
+   * the current epoch (it) within this vector and the index of the current
+   * 3-hour interval (apidx).
+   *
+   * @param[in] it Const iterator to the entry (in an vector<SpaceWeatherData>,
+   * normally _swdata) for the date of interest. You must have a very good
+   * reason for this iterator to be outside the intsance's _swdata vector!
+   * @param[in] apidx Index of the 3hour interval [0,7) for the time of
+   * interest.
+   * @param[out] data A pointer to an Msise00Data instance, where the
+   * exctracted data will be stored at. If the pointer is NULL, then the
+   * instance's _lastdata member will be used.
+   * @return Always 0.
+   */
+  int fill_data(std::vector<SpaceWeatherData>::const_iterator it, int apidx,
+                Msise00Data *data = nullptr);
+
+  /** @brief Collect Msise00Data for a random date.
+   *
+   * This function will search through all of the elements of the _swdata
+   * vector to find a matching date, and collect the relevant data.
+   *
+   * Note that after the function call, _ci will be set to the index of the
+   * record (within _swdata) that corresponds to the date tt, and _lastepoch
+   * will be set to tt.
+   *
+   * @param[in] tt The epoch of interest in [TT]
+   * @param[in] mdata A pointer to an Msise00Data data, where the exctracted
+   * data will be stored at. If the pointer is NULL, then the instance's
+   * _lastdata member will hold the data.
+   * @return Anything other than 0 denotes an error.
+   */
+  [[nodiscard]] int pr_get_data(const MjdEpoch &tt,
+                                Msise00Data *mdata = nullptr);
+}; /* NrlmsiseHunter */
 
 class Nrlmsise00 {
 
 public:
   double density(Eigen::Vector3d rsat, dso::MjdEpoch &tt,
-                 const SpaceWeatherData &data);
+                 const Msise00Data &data);
+  double density(Eigen::Vector3d rsat, dso::MjdEpoch &tt) {
+    if (mhunter)
+      return density(rsat, tt, mhunter->get_data(tt));
+    else
+      throw std::runtime_error(
+          "[ERROR] NrlmsiseDataHunter not setup, cannot compute density!\n");
+  }
+
+  NrlmsiseDataHunter &
+  setup_data_hunter(const std::vector<SpaceWeatherData> &data) {
+    if (mhunter)
+      delete mhunter;
+    mhunter = new NrlmsiseDataHunter();
+    mhunter->set_data_ptr(data);
+    return *mhunter;
+  }
+
+  ~Nrlmsise00() noexcept {
+    if (mhunter)
+      delete mhunter;
+  }
 
 private:
   static constexpr const double rgas = 831.4;
   static constexpr const double dr = dso::D2PI / 365e0; // days to radians
+  NrlmsiseDataHunter *mhunter = nullptr;
 
   struct DataTrigs {
     /** @brief Holds trigs to avoid recomputing in glob7 and glob7s.
@@ -119,12 +246,12 @@ private:
               double f107, const double *const ap, double *densities,
               double *temperatures);
   double glob7(const double *const p, const DataTrigs &dt, double doy,
-                double sec, double glon, double f107, double f107A,
-                const double *const ap, double plg[4][9],
-                double *apt) const noexcept;
+               double sec, double glon, double f107, double f107A,
+               const double *const ap, double plg[4][9],
+               double *apt) const noexcept;
   double glob7s(const double *p, DataTrigs &dt, double doy, double sec,
-                 double glon, double f107, double f107A, const double *const apt,
-                 const double plg[4][9]) const noexcept;
+                double glon, double f107, double f107A, const double *const apt,
+                const double plg[4][9]) const noexcept;
 
   /* POWER7 */
   static const double pt[150];

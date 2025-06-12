@@ -48,14 +48,15 @@ int parse_line(const char *line, dso::SpaceWeatherData *data) noexcept {
     const auto res = std::from_chars(str, last, intar[intidx]);
     if (res.ec != std::errc{})
       ++error;
-    str = last + 1;
+    // printf("int[%2d]=%d\n",intidx,intar[intidx]);
+    str = res.ptr + 1;
   }
 
   {
     const auto res = std::from_chars(str, last, fltar[fltidx]);
     if (res.ec != std::errc{})
       ++error;
-    str = last + 1;
+    str = res.ptr + 1;
     ++fltidx;
   }
 
@@ -63,14 +64,14 @@ int parse_line(const char *line, dso::SpaceWeatherData *data) noexcept {
     const auto res = std::from_chars(str, last, intar[intidx]);
     if (res.ec != std::errc{})
       ++error;
-    str = last + 1;
+    str = res.ptr + 1;
   }
 
   for (int i = 24; i < 26; i++, fltidx++) {
     const auto res = std::from_chars(str, last, fltar[fltidx]);
     if (res.ec != std::errc{})
       ++error;
-    str = last + 1;
+    str = res.ptr + 1;
   }
 
   {
@@ -84,7 +85,7 @@ int parse_line(const char *line, dso::SpaceWeatherData *data) noexcept {
     const auto res = std::from_chars(str, last, fltar[fltidx]);
     if (res.ec != std::errc{})
       ++error;
-    str = last + 1;
+    str = res.ptr + 1;
   }
 
   return error;
@@ -109,18 +110,23 @@ dso::load_celestrak_sw(const char *fn, const dso::MjdEpoch &tstart,
 
   char line[256];
   int error = 0;
-  dso::MjdEpoch tc;
+  int date_matched = 0;
+
+  /* first line is just the header */
+  fin.getline(line, 256);
 
   /* keep on looking untill we meet the first date of interest */
-  while (fin.getline(line, 256) && (!error)) {
-    tc = parse_date(line, error);
+  while ((fin.getline(line, 256) && (!error)) && (!(date_matched))) {
+    date_matched = (parse_date(line, error).imjd() == tstart.imjd());
   }
 
+  dso::SpaceWeatherData data;
   /* collect data for dates of interest */
   if ((!error) && fin.good()) {
-    dso::SpaceWeatherData data;
+    /* first store line in buffer */
     error += parse_line(line, &data);
     res.emplace_back(data);
+    /* keep on storing data until we meet tend */
     while (fin.getline(line, 256) && (!error)) {
       error += parse_line(line, &data);
       if (data.tt() >= tend)
@@ -129,7 +135,8 @@ dso::load_celestrak_sw(const char *fn, const dso::MjdEpoch &tstart,
     }
   }
 
-  if (error && fin.eof()) {
+  if (error) {
+    fprintf(stderr, "[ERROR] Something went wrong while parsing space weather data; error code: %d, last line read: %s (traceback: %s)\n", error, line, __func__);
     return std::vector<dso::SpaceWeatherData>{};
   }
 
