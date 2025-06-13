@@ -4,16 +4,22 @@
 #include <cstring>
 #include <fstream>
 #include <stdexcept>
+#ifdef DEBUG
+#include <cassert>
+#endif
 
 namespace {
 dso::MjdEpoch parse_date(const char *line, int &error) noexcept {
   try {
     const auto utc = dso::TwoPartDateUTC(
         dso::ReadInDate<dso::YMDFormat::YYYYMMDD>::read(line, nullptr));
-    return utc.utc2tt();
+    /* important! this willset hours, minutes, seconds (all) to zero, which may
+     * be misleading when transforming to other time scales. Set hours of day to
+     * 12h to avoid this.*/
+    return utc.add_seconds(dso::FractionalSeconds(86400e0 / 2)).utc2tt();
   } catch (std::exception &e) {
     fprintf(stderr,
-            "[ERROR] Failed resolving date from Clestrak SpaceWaether data; "
+            "[ERROR] Failed resolving date from Clestrak SpaceWeather data; "
             "line was %s (traceback: %s)\n",
             line, __func__);
     error += 1;
@@ -88,6 +94,10 @@ int parse_line(const char *line, dso::SpaceWeatherData *data) noexcept {
     str = res.ptr + 1;
   }
 
+#ifdef DEBUG
+  assert(fltidx) == 7;
+  assert(intidx) == 22;
+#endif
   return error;
 }
 } /* anonymous namespace */
@@ -110,14 +120,14 @@ dso::load_celestrak_sw(const char *fn, const dso::MjdEpoch &tstart,
 
   char line[256];
   int error = 0;
-  int date_matched = 0;
 
   /* first line is just the header */
   fin.getline(line, 256);
 
   /* keep on looking untill we meet the first date of interest */
-  while ((fin.getline(line, 256) && (!error)) && (!(date_matched))) {
-    date_matched = (parse_date(line, error).imjd() == tstart.imjd());
+  while (fin.getline(line, 256) && (!error)) {
+    if (parse_date(line, error).imjd() == tstart.imjd())
+      break;
   }
 
   dso::SpaceWeatherData data;
@@ -136,7 +146,10 @@ dso::load_celestrak_sw(const char *fn, const dso::MjdEpoch &tstart,
   }
 
   if (error) {
-    fprintf(stderr, "[ERROR] Something went wrong while parsing space weather data; error code: %d, last line read: %s (traceback: %s)\n", error, line, __func__);
+    fprintf(stderr,
+            "[ERROR] Something went wrong while parsing space weather data; "
+            "error code: %d, last line read: %s (traceback: %s)\n",
+            error, line, __func__);
     return std::vector<dso::SpaceWeatherData>{};
   }
 

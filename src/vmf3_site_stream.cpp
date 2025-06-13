@@ -1,8 +1,7 @@
 #include "vmf3.hpp"
 #include <algorithm>
-#include <cstring>
 #include <cstdlib>
-#include <datetime/datetime_tops.hpp>
+#include <cstring>
 
 dso::Vmf3SiteStream::Vmf3SiteStream(const char *fn,
                                     const std::vector<const char *> &sites)
@@ -14,7 +13,7 @@ std::vector<const char *>::iterator
 dso::Vmf3SiteStream::append_site(const char *site) noexcept {
   /* current size (in chars) */
   int psize = msites.size() * SITE_LEN;
-  
+
   /* allocate (new)memory */
   auto ptr = new char[psize + SITE_LEN];
 
@@ -24,20 +23,21 @@ dso::Vmf3SiteStream::append_site(const char *site) noexcept {
     std::memcpy(ptr + sitenr * SITE_LEN, s, SITE_LEN);
     ++sitenr;
   }
-  
+
   /* free memory */
   delete[] mmemsites;
-  mmemsites = ptr; 
+  mmemsites = ptr;
 
   /* pointers are now invalidated; reset */
-  for (int i=0; i<msites.size(); i++) msites[i] = mmemsites + i*SITE_LEN;
+  for (int i = 0; i < msites.size(); i++)
+    msites[i] = mmemsites + i * SITE_LEN;
 
   /* copy new site to internal memory */
-  std::memcpy(mmemsites+psize, site, MAX_SITE_CHARS);
-  mmemsites[psize+MAX_SITE_CHARS] = '\0';
+  std::memcpy(mmemsites + psize, site, MAX_SITE_CHARS);
+  mmemsites[psize + MAX_SITE_CHARS] = '\0';
 
   /* add new site */
-  auto it = msites.insert(std::lower_bound(msites.begin(), msites.end(), site, 
+  auto it = msites.insert(std::lower_bound(msites.begin(), msites.end(), site,
                                            [](const char *a, const char *b) {
                                              return std::strcmp(a, b) < 0;
                                            }),
@@ -50,7 +50,7 @@ dso::Vmf3SiteStream::append_site(const char *site) noexcept {
 
   /* set dates at newly added data elements */
 
-  for (int i=0; i<RECS_PER_SITE-1; i++) {
+  for (int i = 0; i < RECS_PER_SITE - 1; i++) {
     ++dit;
     dit->t() = dso::MjdEpoch::min();
   }
@@ -120,7 +120,8 @@ int dso::Vmf3SiteStream::forward_search(const dso::MjdEpoch &t) noexcept {
       if (!error)
         t1 = mstream.current_epoch();
       return error;
-    } else if (t.diff<dso::DateTimeDifferenceType::FractionalDays>(ct).days() > .74) {
+    } else if (t.diff<dso::DateTimeDifferenceType::FractionalDays>(ct).days() >
+               .74) {
       /* too far away, no need to parse the block */
       error += mstream.skip_block();
     } else {
@@ -146,9 +147,11 @@ int dso::Vmf3SiteStream::set_at_epoch(const dso::MjdEpoch &t) noexcept {
       (interval_stop() == MjdEpoch::min())) {
     int error = 0;
     error += mstream.parse_block(msites, mdata, RECS_PER_SITE, 0);
-    if (!error) t0 = mstream.current_epoch();
+    if (!error)
+      t0 = mstream.current_epoch();
     error += mstream.parse_block(msites, mdata, RECS_PER_SITE, 1);
-    if (!error) t1 = mstream.current_epoch();
+    if (!error)
+      t1 = mstream.current_epoch();
     if (error) {
       fprintf(stderr,
               "[ERROR] Failed getting initial epochs from VMF3 stream %s "
@@ -171,21 +174,22 @@ int dso::Vmf3SiteStream::set_at_epoch(const dso::MjdEpoch &t) noexcept {
   return forward_search(t);
 }
 
-//int dso::Vmf3SiteStream::operator()(const dso::MjdEpoch &t) noexcept {
-//  /* locate interval and buffer data */
-//  if (this->set_at_epoch(t)) {
-//    fprintf(stderr,
-//            "[ERROR] Failed locating suitable interval for epoch %.6f for VMF3 "
-//            "stream %s (traceback: %s)\n",
-//            t.imjd() + t.fractional_days(), mstream.fn(), __func__);
-//    return 1;
-//  }
+// int dso::Vmf3SiteStream::operator()(const dso::MjdEpoch &t) noexcept {
+//   /* locate interval and buffer data */
+//   if (this->set_at_epoch(t)) {
+//     fprintf(stderr,
+//             "[ERROR] Failed locating suitable interval for epoch %.6f for
+//             VMF3 " "stream %s (traceback: %s)\n", t.imjd() +
+//             t.fractional_days(), mstream.fn(), __func__);
+//     return 1;
+//   }
 //
-//  return 0;
-//}
+//   return 0;
+// }
 
 int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t,
-                                   dso::Vmf3SiteData &vmf3, int *site_index) noexcept {
+                                   dso::Vmf3SiteData &vmf3,
+                                   int *site_index) noexcept {
   /* find the site in the site list */
   const auto it = vmf3_details::find_if_sorted_string(site, msites);
   if (it == msites.end()) {
@@ -209,8 +213,10 @@ int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t,
   }
 
   /* linear interpolation for all data */
-  const auto dt10 = t1.diff<dso::DateTimeDifferenceType::FractionalDays>(t0).days();
-  const auto dt0 = t.diff<dso::DateTimeDifferenceType::FractionalDays>(t0).days();
+  const auto dt10 =
+      t1.diff<dso::DateTimeDifferenceType::FractionalDays>(t0).days();
+  const auto dt0 =
+      t.diff<dso::DateTimeDifferenceType::FractionalDays>(t0).days();
   const auto dt1 = t1.diff<dso::DateTimeDifferenceType::FractionalDays>(t);
 
   const double *y0 = mdata[index].data();
@@ -218,14 +224,15 @@ int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t,
   double *__restrict__ y = vmf3.data();
   for (int i = 0; i < 7; i++) {
     // y[i] = (y0[i] * dt1 + y1[i] * dt0) / dt10;
-    y[i] = y0[i] + dt0 * (y1[i]-y0[i]) / dt10;
+    y[i] = y0[i] + dt0 * (y1[i] - y0[i]) / dt10;
   }
 
   /* assign epoch */
   vmf3.t() = t;
 
   /* assign site index */
-  if (site_index) *site_index = std::distance(msites.cbegin(), it);
+  if (site_index)
+    *site_index = std::distance(msites.cbegin(), it);
 
   return 0;
 }
@@ -244,8 +251,8 @@ int dso::Vmf3SiteStream::site_vmf3(
     return 1;
   }
 
-  /* the FullCoeffs should be at index site_index of the mvfc vector; compute 
-   * empirical coeffs for epoch 
+  /* the FullCoeffs should be at index site_index of the mvfc vector; compute
+   * empirical coeffs for epoch
    */
   const auto ec = mvfc[site_index].computeCoeffs(t);
 

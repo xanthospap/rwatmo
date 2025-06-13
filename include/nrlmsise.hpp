@@ -39,24 +39,39 @@ public:
     _swdata = &data_ptr;
     _lastepoch = MjdEpoch::min();
   }
-  
-  const Msise00Data &msise_data() const noexcept {return _lastdata;}
+
+  const Msise00Data &msise_data() const noexcept { return _lastdata; }
 
 private:
   /* seconds in a3-hour interval */
-  const long SEC_IN_3H = 60 * 60 * 3;
+  static constexpr const long SEC_IN_3H = 60 * 60 * 3;
   /* ptr to a SpaceWeatherData vector where we shall extract data from */
   const std::vector<SpaceWeatherData> *_swdata{nullptr};
   /* current index in the SpaceWeatherData vector */
   int _ci = 0;
+  /* this is the seconds (in day) of the epoch of which _ci referes to. Why do
+   * we need this? Well, we are transforming epochs from UTC to TT, but we have
+   * to deal with 3-hour intervals that start at 0H UTC. So, to find the 3-hour
+   * interval an epoch belongs to, give that the reference epoch start at XX
+   * seconds, we must subtract XX seconds.
+   *
+   * See the function _3hidx
+   */
+  double _ci_start_of_day_sec = 0e0;
   /* last epoch used to hunt data */
   MjdEpoch _lastepoch{MjdEpoch::min()};
   /* last Msise00Data acquired */
   Msise00Data _lastdata{};
 
+  double start_of_day_sec() const noexcept {
+    return (_swdata->cbegin() + _ci)->tt().seconds().seconds();
+  }
+
   /* find index of 3-hour interval of given date, in range [0-8) */
   int _3hidx(const MjdEpoch &tt) const noexcept {
-    const double sec_in_day = tt.seconds().seconds();
+    const double sec_in_day = tt.seconds().seconds() - _ci_start_of_day_sec;
+    printf("\t> _3hidx: sec_in_day=%.9f or %ld and 3H=%ld\n", sec_in_day,
+           static_cast<long>(sec_in_day), SEC_IN_3H);
     const int idx = static_cast<long>(sec_in_day) / SEC_IN_3H;
     return idx;
   }
@@ -89,6 +104,10 @@ private:
    * given that we wave a vector of SpaceWeatherData AND we know the index of
    * the current epoch (it) within this vector and the index of the current
    * 3-hour interval (apidx).
+   *
+   * Note that the data required may be up to 3 days prior to current date!
+   * Make sure that the calling function that the passed in iterator is at
+   * least >= std::vector<SpaceWeatherData>::cbegin()+3
    *
    * @param[in] it Const iterator to the entry (in an vector<SpaceWeatherData>,
    * normally _swdata) for the date of interest. You must have a very good
