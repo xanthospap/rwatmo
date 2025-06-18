@@ -70,8 +70,6 @@ private:
   /* find index of 3-hour interval of given date, in range [0-8) */
   int _3hidx(const MjdEpoch &tt) const noexcept {
     const double sec_in_day = tt.seconds().seconds() - _ci_start_of_day_sec;
-    printf("\t> _3hidx: sec_in_day=%.9f or %ld and 3H=%ld\n", sec_in_day,
-           static_cast<long>(sec_in_day), SEC_IN_3H);
     const int idx = static_cast<long>(sec_in_day) / SEC_IN_3H;
     return idx;
   }
@@ -144,11 +142,11 @@ private:
 class Nrlmsise00 {
 
 public:
-  double density(Eigen::Vector3d rsat, dso::MjdEpoch &tt,
+  double density(Eigen::Vector3d rsat_ecef, const dso::MjdEpoch &tt,
                  const Msise00Data &data);
-  double density(Eigen::Vector3d rsat, dso::MjdEpoch &tt) {
+  double density(Eigen::Vector3d rsat_ecef, const dso::MjdEpoch &tt) {
     if (mhunter)
-      return density(rsat, tt, mhunter->get_data(tt));
+      return density(rsat_ecef, tt, mhunter->get_data(tt));
     else
       throw std::runtime_error(
           "[ERROR] NrlmsiseDataHunter not setup, cannot compute density!\n");
@@ -268,8 +266,8 @@ private:
                double sec, double glon, double f107, double f107A,
                const double *const ap, double plg[4][9],
                double *apt) const noexcept;
-  double glob7s(const double *p, DataTrigs &dt, double doy, double sec,
-                double glon, double f107, double f107A, const double *const apt,
+  double glob7s(const double *p, DataTrigs &dt, double doy,
+                double glon, double f107A, const double *const apt,
                 const double plg[4][9]) const noexcept;
 
   /* POWER7 */

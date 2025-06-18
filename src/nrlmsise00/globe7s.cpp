@@ -1,13 +1,12 @@
 #include "nrlmsise.hpp"
 
 double dso::Nrlmsise00::glob7s(const double *p, dso::Nrlmsise00::DataTrigs &dt,
-                                double doy, double sec, double glon,
-                                double f107, double f107A,
+                                double doy, double glon,
+                                double f107A,
                                 const double *const apt, const double plg[4][9]
                                 ) const noexcept {
   /*    VERSION OF GLOBE FOR LOWER ATMOSPHERE 10/26/99
    */
-  constexpr const double pset = 2.0;
 
   /* initialize temperatures */
   double t[14];

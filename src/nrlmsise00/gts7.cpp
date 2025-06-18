@@ -14,8 +14,7 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
   const double tloc = sec / 3600e0 + dso::rad2deg(flh.lon()) / 15.e0;
 
   /* altitude in km */
-  const double altitude =
-      (flh.hgt() - dso::mean_earth_radius<dso::ellipsoid::grs80>()) * 1e-3;
+  const double altitude = flh.hgt() * 1e-3;
   if (altitude < 72.5) {
     fprintf(stderr,
             "[ERROR] Cannot compute density for altitude < 72.5 km. Need to "
@@ -68,31 +67,31 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
   const double s = g0 / (temperatures[0] - tlb);
 
   double meso_tn1[5];
-  double meso_tn2[4];
-  double meso_tn3[5];
+  //double meso_tn2[4];
+  //double meso_tn3[5];
   double meso_tgn1[2];
-  double meso_tgn2[2];
-  double meso_tgn3[2];
+  //double meso_tgn2[2];
+  //double meso_tgn3[2];
 
   /* Lower thermosphere temp variations not significant for density above 300 km
    */
   if (altitude < 300.0) {
     meso_tn1[1] = ptm[6] * ptl[0][0] /
-                  (1.0 - glob7s(ptl[0], dt, doy, sec, flh.lon(), f107, f107A,
+                  (1.0 - glob7s(ptl[0], dt, doy, flh.lon(), f107A,
                                 apt, plg));
     meso_tn1[2] = ptm[2] * ptl[1][0] /
-                  (1.0 - glob7s(ptl[1], dt, doy, sec, flh.lon(), f107, f107A,
+                  (1.0 - glob7s(ptl[1], dt, doy, flh.lon(), f107A,
                                 apt, plg));
     meso_tn1[3] = ptm[7] * ptl[2][0] /
-                  (1.0 - glob7s(ptl[2], dt, doy, sec, flh.lon(), f107, f107A,
+                  (1.0 - glob7s(ptl[2], dt, doy, flh.lon(), f107A,
                                 apt, plg));
     meso_tn1[4] = ptm[4] * ptl[3][0] /
-                  (1.0 - glob7s(ptl[3], dt, doy, sec, flh.lon(), f107, f107A,
+                  (1.0 - glob7s(ptl[3], dt, doy, flh.lon(), f107A,
                                 apt, plg));
     meso_tgn1[1] =
         ptm[8] * pma[8][0] *
         (1.0 +
-         glob7s(pma[8], dt, doy, sec, flh.lon(), f107, f107A, apt, plg)) *
+         glob7s(pma[8], dt, doy, flh.lon(), f107A, apt, plg)) *
         meso_tn1[4] * meso_tn1[4] / (std::pow((ptm[4] * ptl[3][0]), 2.0));
   } else {
     meso_tn1[1] = ptm[6] * ptl[0][0];
@@ -116,7 +115,7 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
   double u[10];
 
   /**** N2 DENSITY ****/
-  double zhm28, b28;
+  double zhm28=0e0, b28=0e0;
   {
     /* Diffusive density at Zlb */
     const double db28 = pdm[2][0] * std::exp(g28) * pd[2][0];
@@ -396,6 +395,8 @@ double dso::Nrlmsise00::gts7(const dso::MjdEpoch &t,
                   40.0 * densities[4] + densities[6] + 14.0 * densities[7]);
 
   /* temperature */
-  return densu(flh.lat(), altitude, 1.0, temperatures[0], tlb, 0.0, 0.0,
+  temperatures[1] = densu(flh.lat(), altitude, 1.0, temperatures[0], tlb, 0.0, 0.0,
                temperatures[1], ptm[5], s, mn1, zn1, meso_tn1, meso_tgn1, u);
+
+  return densities[5];
 }

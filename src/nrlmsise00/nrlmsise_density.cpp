@@ -1,7 +1,7 @@
 #include "geodesy/transformations.hpp"
 #include "nrlmsise.hpp"
 
-double dso::Nrlmsise00::density(Eigen::Vector3d rsat, dso::MjdEpoch &tt,
+double dso::Nrlmsise00::density(Eigen::Vector3d rsat, const dso::MjdEpoch &tt,
                                 const dso::Msise00Data &data)
 {
 

@@ -101,21 +101,17 @@ int dso::NrlmsiseDataHunter::fill_data(
 
   /* next, Average of eight 3 hr AP indicies from 12 to 33 hrs prior to
    * current time */
-  printf("\t> average [1]: ");
   double average = 0;
   for (int i = 0; i < 8; i++) {
     if (apidx == 0) {
       --it;
       apidx = 7;
-      printf("[..prev. day..]");
     } else {
       --apidx;
     }
-    printf("%d +", it->int_array()[_3hapindex_start + apidx]);
     average += static_cast<double>(it->int_array()[_3hapindex_start + apidx]);
   }
   data->ap[5] = average / 8.;
-  printf(" / 8 = %.1f\n", data->ap[5]);
 
   /* next, Average of eight 3 hr AP indicies from 36 to 57 hrs prior to
    * current time */

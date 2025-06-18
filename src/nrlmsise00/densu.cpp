@@ -13,7 +13,7 @@ double dso::Nrlmsise00::densu(double lat, double alt, double dlb, double tinf,
   double xs[5], ys[5], y2out[5];
 
   /* joining altitudes of Bates and spline */
-  const double z = (alt > zn1[0]) ? alt : zn1[0];
+  double z = (alt > zn1[0]) ? alt : zn1[0];
   
   double re;
   const double gsurf = glatf(lat, re);
@@ -42,7 +42,7 @@ double dso::Nrlmsise00::densu(double lat, double alt, double dlb, double tinf,
         (tinf - tt) * s2 * std::pow(((re + zlb) / (re + zn1[0])), 2.0);
     tgn1[0] = dta;
     tn1[0] = tt;
-    const double z = (alt > zn1[mn1 - 1]) ? alt : zn1[mn1 - 1];
+    z = (alt > zn1[mn1 - 1]) ? alt : zn1[mn1 - 1];
     /* geopotental difference from z1 */
     const double zg = ((z - zn1[0]) * (re + zn1[0]) / (re + z));
     zgdif = ((zn1[mn1-1] - zn1[0]) * (re + zn1[0]) / (re + zn1[mn1-1]));

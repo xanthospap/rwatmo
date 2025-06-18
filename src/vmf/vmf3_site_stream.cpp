@@ -29,7 +29,7 @@ dso::Vmf3SiteStream::append_site(const char *site) noexcept {
   mmemsites = ptr;
 
   /* pointers are now invalidated; reset */
-  for (int i = 0; i < msites.size(); i++)
+  for (int i = 0; i < (int)msites.size(); i++)
     msites[i] = mmemsites + i * SITE_LEN;
 
   /* copy new site to internal memory */
@@ -87,7 +87,7 @@ void dso::Vmf3SiteStream::initialize(
   });
 
   /* initialize mdata with the correct number of records */
-  for (int j = 0; j < sites.size(); j++) {
+  for (int j = 0; j < (int)sites.size(); j++) {
     mdata.push_back(dso::Vmf3SiteData{});
     for (int i = 1; i < RECS_PER_SITE; i++)
       mdata.push_back(dso::Vmf3SiteData{dso::MjdEpoch::min()});
@@ -217,7 +217,7 @@ int dso::Vmf3SiteStream::site_vmf3(const char *site, const dso::MjdEpoch &t,
       t1.diff<dso::DateTimeDifferenceType::FractionalDays>(t0).days();
   const auto dt0 =
       t.diff<dso::DateTimeDifferenceType::FractionalDays>(t0).days();
-  const auto dt1 = t1.diff<dso::DateTimeDifferenceType::FractionalDays>(t);
+  [[maybe_unused]]const auto dt1 = t1.diff<dso::DateTimeDifferenceType::FractionalDays>(t);
 
   const double *y0 = mdata[index].data();
   const double *y1 = mdata[index + 1].data();
@@ -246,7 +246,7 @@ int dso::Vmf3SiteStream::site_vmf3(
   if (site_vmf3(site, t, site_data, &site_index)) {
     fprintf(stderr,
             "[ERROR] Failed interpolating VMF3 data for site %s at %.6f "
-            "(traceback: %s)\n",
+            "(traceback: %s)\n", site,
             t.imjd() + t.fractional_days().days(), __func__);
     return 1;
   }
@@ -257,7 +257,6 @@ int dso::Vmf3SiteStream::site_vmf3(
   const auto ec = mvfc[site_index].computeCoeffs(t);
 
   /* VMF3 wet and dry maping functions for given elevation angle */
-  double mfh, mfw;
   ec.mf(el, site_data.ah(), site_data.aw(), res.mfh, res.mfw);
 
   /* assign zenith path delays */
@@ -283,7 +282,7 @@ dso::Vmf3SiteStream::set_site_coordinates(
 
   /* compute vmf3FullCoeffSet for given site */
   int index = std::distance(msites.cbegin(), it);
-  if (index >= mvfc.size()) {
+  if (index >= (int)mvfc.size()) {
     fprintf(stderr,
             "[ERROR] Incosistent size of Vmf3FullCoeffs in Vmf3SiteStream; "
             "site is %s (traceback: %s)\n",

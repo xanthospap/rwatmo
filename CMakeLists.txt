@@ -6,44 +6,85 @@ project(
   DESCRIPTION "Radio-Wave Atmosphere"
   LANGUAGES CXX)
 
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-  
-  # Let's ensure -std=c++xx instead of -std=g++xx
-  set(CMAKE_CXX_EXTENSIONS OFF)
-  
-  # Let's nicely support folders in IDEs
-  set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-  
-  include(CTest)
-  
-  find_package(Doxygen)
-  #if(Doxygen_FOUND)
-  #  add_subdirectory(doc)
-  #else()
-  #  message(STATUS "Doxygen not found, not building docs")
-  #endif()
 
-endif()
+# Ensure required libraries are available
+find_package(Eigen3   REQUIRED)
+find_package(geodesy  REQUIRED)
+find_package(datetime REQUIRED)
 
-# We need Eigen
-# find_package(Eigen3 3.3 REQUIRED)
+# Pass the library dependencies to subdirectories
+set(PROJECT_DEPENDENCIES Eigen3::Eigen geodesy datetime)
+
+# compiler flags
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED On)
+set(CMAKE_CXX_EXTENSIONS Off)
+add_compile_options(-Wall
+  -Wextra
+  -Werror
+  -pedantic
+  -W
+  -Wshadow
+  $<$<CONFIG:Release>:-O2>
+  $<$<CONFIG:Release>:-march=native>
+  $<$<CONFIG:Debug>:-g>
+  $<$<CONFIG:Debug>:-pg>
+  $<$<CONFIG:Debug>:-Wdisabled-optimization>
+  )
+add_compile_definitions(
+  $<$<CONFIG:Debug>:DEBUG>
+)
+
+# the library and includes
+add_library(rwatmo)
+target_include_directories(rwatmo
+PUBLIC
+  # Public headers during build time
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/>
+  # Public headers during install time
+  $<INSTALL_INTERFACE:include/rwatmo>
+)
 
 # The library
-add_subdirectory(src)
+add_subdirectory(src/vmf)
 add_subdirectory(src/nrlmsise00)
 add_subdirectory(src/math)
 add_subdirectory(src/spaceweather)
 
 # The tests
-add_subdirectory(test)
-enable_testing()
+if(BUILD_TESTING)
+  include(CTest)
+  add_subdirectory(test/)
+  enable_testing()
+endif()
 
-add_compile_options(
-  -Wall -Wextra -Werror -pedantic -W -Wshadow -march=native -DEIGEN_NO_AUTOMATIC_RESIZING
-  $<$<CONFIG:RELEASE>:-O2 -march=native -DEIGEN_NO_AUTOMATIC_RESIZING>
-  $<$<CONFIG:DEBUG>:-g -pg -Wdisabled-optimization -DDEBUG>
+# install library
+install(TARGETS rwatmo
+        EXPORT rwatmoTargets
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
 )
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED On)
-set(CMAKE_CXX_EXTENSIONS Off)
+# Install public headers at: $PREFIX/rwatmo/...
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
+	DESTINATION include/rwatmo
+)
+
+install(EXPORT rwatmoTargets
+        FILE rwatmoTargets.cmake
+        NAMESPACE dso::
+        DESTINATION lib/cmake
+)
+
+include(CMakePackageConfigHelpers)
+
+write_basic_package_version_file(
+  "rwatmoConfigVersion.cmake"
+  VERSION ${rwatmo_version}
+  COMPATIBILITY AnyNewerVersion
+)
+
+install(FILES "rwatmoConfig.cmake" "${CMAKE_CURRENT_BINARY_DIR}/rwatmoConfigVersion.cmake"
+  DESTINATION lib/cmake
+)

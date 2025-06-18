@@ -94,6 +94,7 @@ int resolve_date(const char *line, dso::MjdEpoch &t) noexcept {
   return error;
 }
 
+[[maybe_unused]]
 int skip_comment_lines(std::ifstream &fin, char *line, int MAX_CHARS) noexcept {
   while ((*line && *line == '#') && fin.good())
     fin.getline(line, MAX_CHARS);
@@ -175,7 +176,7 @@ int dso::Vmf3SiteFileStream::parse_block(const std::vector<const char *> &sites,
   /* something is wrong, report it */
   if (error || (!mstream.good())) {
     if (error) 
-      fprintf(stderr, "[ERROR] Failed resolving line % from VMF3 file %s (traceback: %s)\n", bline, fn(), __func__);
+      fprintf(stderr, "[ERROR] Failed resolving line %s from VMF3 file %s (traceback: %s)\n", bline, fn(), __func__);
     else
       fprintf(stderr, "[ERROR] Failed reading from VMF3 file %s; lat line was: %s (traceback: %s)\n", fn(), bline, __func__);
   }
