@@ -115,6 +115,7 @@ int dso::NrlmsiseDataHunter::fill_data(
 
   /* next, Average of eight 3 hr AP indicies from 36 to 57 hrs prior to
    * current time */
+  average = 0e0;
   for (int i = 0; i < 8; i++) {
     if (apidx == 0) {
       --it;

@@ -15,6 +15,9 @@ find_package(datetime REQUIRED)
 # Pass the library dependencies to subdirectories
 set(PROJECT_DEPENDENCIES Eigen3::Eigen geodesy datetime)
 
+# Define an option for building tests (defaults to ON)
+option(BUILD_TESTING "Enable building of tests" ON)
+
 # compiler flags
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
