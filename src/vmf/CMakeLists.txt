@@ -5,4 +5,6 @@ target_sources(rwatmo
     #${CMAKE_SOURCE_DIR}/src/vmf/vmf3_site_file_stream.cpp
     #${CMAKE_SOURCE_DIR}/src/vmf/vmf3_site_stream.cpp
     ${CMAKE_SOURCE_DIR}/src/vmf/load_gr_grid_data.cpp
+    ${CMAKE_SOURCE_DIR}/src/vmf/tickaxis.cpp
+    ${CMAKE_SOURCE_DIR}/src/vmf/tickaxis2d.cpp
 )
