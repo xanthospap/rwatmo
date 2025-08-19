@@ -192,7 +192,6 @@ class TickAxis {
 class TickAxis2D {
   TickAxis outter_;
   TickAxis inner_;
-  using index_type = int64_t;
 
   /* helper: get (i,j) without checks. */
   inline std::pair<int, int> index_ij_unchecked(double val_out,
@@ -201,6 +200,8 @@ class TickAxis2D {
   }
 
  public:
+  using index_type = int64_t;
+  
   struct Cell {
     int bl, br, tl, tr;
   };
@@ -221,10 +222,32 @@ class TickAxis2D {
 
   Cell cell(double val_out, double val_in) const;
   Cell cell_nocheck(double val_out, double val_in) const noexcept;
+
+   /** @brief Map a row-major linear index to its tick values on the outer and inner axes.
+   *
+   * Uses the same linearization as TickAxis2D::index():
+   * \f$ \text{idx} = i \cdot N_{\text{inner}} + j \f$ where @c N_inner = inner_.num_pts().
+   *
+   * @param idx Linear index (no bounds checking; may be negative).
+   * @return std::pair<double,double> { outter_.val(i), inner_.val(j) }.
+   *
+   * @warning No bounds checking is performed. If @c inner_.num_pts() == 0 the division
+   *          is undefined. Ensure the grid is initialized. Negative @p idx will
+   *          produce negative @c i/@c j by truncating division toward zero.
+   */
+  std::pair<double,double> val(index_type idx) const noexcept {
+    const index_type ncols = static_cast<index_type>(inner_.num_pts());
+    const index_type i = idx / ncols; // row
+    const index_type j = idx % ncols; // col
+    return { outter_.val(static_cast<int>(i)),
+             inner_.val (static_cast<int>(j)) };
+  }
 }; /* class TickAxis2D */
 
 class GridVmf3Data {
  public:
+  using index_type = TickAxis2D::index_type;
+
   struct Data {
 //(1) 	latitude [°]
 //(2) 	longitude [°]
@@ -249,6 +272,7 @@ class GridVmf3Data {
 #endif
     double data_[NUM_ELEMENTS];
     double *data() noexcept { return data_ + data_start_at_; }
+    const double *data() const noexcept { return data_ + data_start_at_; }
   };
 
  private:
@@ -309,7 +333,7 @@ class GridVmf3Data {
     }
   }
 
-  std::size_t num_pts() const noexcept { return axis_.num_pts(); }
+  index_type num_pts() const noexcept { return axis_.num_pts(); }
 
   TickAxis2D::Cell cell(double lat, double lon) const {
     return axis_.cell(lat, lon);
@@ -318,10 +342,38 @@ class GridVmf3Data {
   TickAxis2D::Cell cell_nocheck(double lat, double lon) const noexcept {
     return axis_.cell_nocheck(lat, lon);
   }
-
+  
+  std::pair<double,double> val(TickAxis2D::index_type idx) const noexcept {
+    return axis_.val(idx);
+  }
+  
   Data *data(std::size_t idx) noexcept { return data_ + idx; }
+  const Data *data(std::size_t idx) const noexcept { return data_ + idx; }
 
-  std::size_t bl(double lat, double lon) const noexcept {
+  int bilinear_interpolation(double lat_deg, double lon_deg, Data &out) const noexcept {
+    try {
+      const auto cell = this->cell(lat_deg, lon_deg);
+      auto [x1, y1] = this->val(cell.bl);
+      auto [x2, y2] = this->val(cell.tr);
+      const double  x = lat_deg;
+      const double  y = lon_deg;
+      for (int i=0; i<Data::NUM_ELEMENTS; i++) {
+        const double f11 = this->data(cell.bl)->data()[i];
+        const double f21 = this->data(cell.br)->data()[i];
+        const double f12 = this->data(cell.tl)->data()[i];
+        const double f22 = this->data(cell.tr)->data()[i];
+        const double fxy1 = (x2-x)/(x2-x1)*f11 + (x-x1)/(x2-x1)*f21;
+        const double fxy2 = (x2-x)/(x2-x1)*f12 + (x-x1)/(x2-x1)*f22;
+        out.data()[i] = (y2-y)/(y2-y1)*fxy1 + (y-y1)/(y2-y1)*fxy2;
+      }
+    } catch (std::exception &e) {
+      return 1;
+    }
+
+    return 0;
+  }
+
+  index_type bl(double lat, double lon) const noexcept {
     return axis_.index(lat, lon);
   }
 }; /* class GridVmf3Data */
@@ -333,6 +385,8 @@ struct SiteBlock {
   GridVmf3Data::Data mdata_t0;
   GridVmf3Data::Data mdata_t1;
   Vmf3FullCoeffs msitebc;
+
+  void linear_interpolation(const MjdEpoch &t) const noexcept;
 }; /* struct SiteBlock */
 
 } /* namespace vmf3 */

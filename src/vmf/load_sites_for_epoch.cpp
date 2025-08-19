@@ -28,6 +28,10 @@ int dso::Vmf3SiteHandler::load_sites_for_epoch(const ymd_date &ymd,
     const double lat = dso::rad2deg(site.mcrd.lat());
     const double lon = dso::rad2deg(site.mcrd.lon());
     /* TODO guard for exceptions */
-    const auto c = grid.cell_nocheck(lat, lon);
+    if (grid.bilinear_interpolation(lat, lon, site.mdata_t1)) {
+      return 1;
     }
+  }
+
+  return 0;
 }
