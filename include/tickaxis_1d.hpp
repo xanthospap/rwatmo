@@ -28,15 +28,27 @@ struct PeriodicStorage<IsPeriodic::Periodic> {
 template <IsPeriodic P>
 class TickAxis : private PeriodicStorage<P> {
   static constexpr bool kPeriodic = (P == IsPeriodic::Periodic);
+  using PS = PeriodicStorage<P>;
 
   double start_{0.0};  ///< first tick (inclusive)
   double step_{1.0};   ///< signed spacing
   int num_pts_{0};     ///< inclusive number of ticks
 
-  using PS = PeriodicStorage<P>;
-  using PS::period_;  // only available when periodic
-
  public:
+  // accessor/setter that compile only the relevant branch
+  constexpr double period() const noexcept {
+    if constexpr (kPeriodic)
+      return PS::period_;
+    else
+      return 0.0;  // or throw/unused
+  }
+  constexpr void set_period(double T) noexcept {
+    if constexpr (kPeriodic)
+      PS::period_ = T;
+    else
+      (void)T;  // no-op
+  }
+
   /// Construct [start..stop] inclusive with spacing @p step.
   /// @param eps_steps tolerance as a fraction of |step| (default 1e-9)
   /// @param period_hint required period if periodic (e.g., 360.0); if 0, infer
@@ -68,15 +80,15 @@ class TickAxis : private PeriodicStorage<P> {
 
     if constexpr (kPeriodic) {
       if (period_hint > 0.0) {
-        period_ = period_hint;
+        set_period(period_hint);
         const double inferred = std::abs(step_) * static_cast<double>(num_pts_);
-        if (std::abs(inferred - period_) >
+        if (std::abs(inferred - period()) >
             std::abs(step_) * eps_steps * num_pts_)
           throw std::runtime_error(
               "TickAxis: period_hint inconsistent with step*num_pts");
       } else {
-        period_ = std::abs(step_) *
-                  static_cast<double>(num_pts_);  // e.g., 1°*360 = 360°
+        set_period(std::abs(step_) *
+                   static_cast<double>(num_pts_));  // e.g., 1°*360 = 360°
       }
     }
   }
@@ -92,13 +104,6 @@ class TickAxis : private PeriodicStorage<P> {
 
   // ---------- periodic helpers ----------
   static constexpr bool periodic() noexcept { return kPeriodic; }
-
-  double period() const noexcept {
-    if constexpr (kPeriodic)
-      return period_;
-    else
-      return 0.0;
-  }
 
   /// Wrap index into [0, num_pts()-1] when periodic; otherwise return as-is.
   int wrap_index(int idx) const noexcept {
@@ -167,12 +172,23 @@ class TickAxis : private PeriodicStorage<P> {
   // Does the same as unwrap_pair_around but also modifies the value if needed.
   // A no-op if the Axis is not periodic.
   // usefull e.g. when interpolating near bounds (for the periodic case)
+  // Example:
+  //  Periodic longitude axis: period = 360°, ticks: 0, 2.5, 5, …, 357.5 (step
+  //  +2.5). Site longitude given as v = -1° (same as 359° but in a different
+  //  wrap). The two neighbor grid longitudes for the cell you’re interpolating
+  //  across are a0 = 357.5° and a1 = 0.0° (this segment crosses the seam).
+  //  double v  = -1.0;     // site lon
+  //  double a0 = 357.5;  // left grid lon
+  //  double a1 = 0.0;    // right grid lon
+  //  axis.unwrap_segment_around(v, a0, a1);
+  //  Result : (v, a0, a1) = (-1.0, -2.5, 0.0) — a clean, monotonic segment with
+  //  v inside it.
   void unwrap_segment_around(double& v, double& a0, double& a1) const noexcept {
     if constexpr (kPeriodic) {
       // reuse the private logic:
       // shift (a0,a1) near v and ensure segment direction matches step sign,
       // also nudge v into that unwrapped interval.
-      const double per = period_;
+      const double per = period();
       const double k = std::floor((v - a0) / per + 0.5);
       a0 += k * per;
       a1 += k * per;
@@ -196,7 +212,7 @@ class TickAxis : private PeriodicStorage<P> {
   // lies between them.
   void unwrap_pair_around(double v, double& a0, double& a1) const noexcept {
     if constexpr (!kPeriodic) return;
-    const double per = period_;
+    const double per = period();
     const double k = std::floor((v - a0) / per + 0.5);
     a0 += k * per;
     a1 += k * per;

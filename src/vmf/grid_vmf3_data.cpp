@@ -1,5 +1,5 @@
 #include "geodesy/units.hpp"
-#include "vmf3_grid_stream.hpp"
+#include "vmf3_grid_data.hpp"
 
 int dso::vmf3::GridVmf3Data::bilinear_interpolation(
     double lat_deg, double lon_deg,

@@ -24,30 +24,32 @@ struct Site {
 class GridVmf3Data {
  public:
   struct Data {
-//(1) 	latitude [°]
-//(2) 	longitude [°]
-//(3) 	hydrostatic "a" coefficient
-//(4) 	wet "a" coefficient
-//(5) 	zenith hydrostatic delay [m]
-//(6) 	zenith wet delay [m]
-//(7) 	hydrostatic north gradient [mm]
-//(8) 	hydrostatic east gradient [mm]
-//(9) 	wet north gradient [mm]
-//(10) 	wet east gradient [mm]
-#ifdef DEBUG
-    static constexpr const int data_start_at_ = 2;
-    static constexpr const int NUM_ELEMENTS = 8;
-    double lat() const noexcept { return data_[0]; }
-    double lon() const noexcept { return data_[1]; }
-    double &lat() noexcept { return data_[0]; }
-    double &lon() noexcept { return data_[1]; }
-#else
-    static constexpr const int data_start_at_ = 0;
-    static constexpr const int NUM_ELEMENTS = 8;
-#endif
-    double data_[NUM_ELEMENTS];
+    //(1) 	latitude [°]
+    //(2) 	longitude [°]
+    //(3)  height from orography (optional)
+    //(4) 	hydrostatic "a" coefficient
+    //(5) 	wet "a" coefficient
+    //(6) 	zenith hydrostatic delay [m]
+    //(7) 	zenith wet delay [m]
+    //(8) 	hydrostatic north gradient [mm]
+    //(9) 	hydrostatic east gradient [mm]
+    //(10) 	wet north gradient [mm]
+    //(11) 	wet east gradient [mm]
+    static constexpr const int data_start_at_ = 3;
+    static constexpr const int NUM_DATA_ELEMENTS = 8;
+    static constexpr const int NUM_ENTRIES = NUM_DATA_ELEMENTS + data_start_at_;
+
+    double data_[NUM_ENTRIES];
     double *data() noexcept { return data_ + data_start_at_; }
     const double *data() const noexcept { return data_ + data_start_at_; }
+
+    double lat_deg() const noexcept { return data_[0]; }
+    double lon_deg() const noexcept { return data_[1]; }
+    double oro_ell() const noexcept { return data_[2]; }
+    double &lat_deg() noexcept { return data_[0]; }
+    double &lon_deg() noexcept { return data_[1]; }
+    double &oro_ell() noexcept { return data_[2]; }
+
     double ah() const noexcept { return data_[data_start_at_]; }
     double aw() const noexcept { return data_[data_start_at_ + 1]; }
     double zhd() const noexcept { return data_[data_start_at_ + 2]; }
@@ -104,7 +106,7 @@ class GridVmf3Data {
     axis_ = TickAxis2D_NP(ostart, ostop, ostep, istart, istop, istep, eps_steps,
                           0e0, inner_period_hint);
     index_type npts = axis_.num_pts();
-    if (npts > capacity_) {
+    if ((std::size_t)npts > capacity_) {
       if (data_) std::free(data_);
       data_ = (Data *)std::malloc(axis_.num_pts() * sizeof(Data));
       capacity_ = axis_.num_pts();
@@ -116,10 +118,10 @@ class GridVmf3Data {
   Data *data(std::size_t idx) noexcept { return data_ + idx; }
   const Data *data(std::size_t idx) const noexcept { return data_ + idx; }
 
-  [[no_discard]] int bilinear_interpolation(double lat_deg, double lon_deg,
-                                            Data &out) const noexcept;
-  int bilinear_interpolation_nocheck(double lat_deg, double lon_deg,
-                                     Data &out) const noexcept;
+  //[[no_discard]] int bilinear_interpolation(double lat_deg, double lon_deg,
+  //                                          Data &out) const noexcept;
+  // int bilinear_interpolation_nocheck(double lat_deg, double lon_deg,
+  //                                   Data &out) const noexcept;
 
 }; /* class GridVmf3Data */
 

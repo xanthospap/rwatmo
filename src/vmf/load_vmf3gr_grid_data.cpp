@@ -1,13 +1,11 @@
+#include <cassert>
 #include <charconv>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
 
 #include "datetime/datetime_read.hpp"
-#include "vmf3_grid_stream.hpp"
-#ifdef DEBUG
-#include <cassert>
-#endif
+#include "vmf3_grid_data.hpp"
 
 namespace {
 constexpr const int MAX_VMF3_CHARS = 256;
@@ -80,7 +78,7 @@ int dso::load_vmfgr3_grid_map(const char *fn,
     } else if (!std::strncmp(line + 2, "Scale_factor:", 13)) {
       auto ec = std::from_chars(skipws(line + 2 + 13), line + std::strlen(line),
                                 scale_factor);
-      if (!(ec.ec == std::errc{})) {
+      if (!(ec.ec == std::errc{}) || scale_factor != 1e0) {
         fprintf(stderr,
                 "[ERROR] Invalid(?) header line encountered in VMF3 grid data "
                 "file %s (traceback: %s)\n",
@@ -134,46 +132,26 @@ int dso::load_vmfgr3_grid_map(const char *fn,
   /* set correct dimensions for the grid data we shall load/store (whatch out fo
    * the order!) */
   grid->set_range(range[0], range[1], range[4], range[2], range[3], range[5]);
-  // printf("Setting range: (%.2f, %.2f: %.2f) and (%.2f, %.2f: %.2f)\n",
-  // range[0],
-  //        range[1], range[4], range[2], range[3], range[5]);
 
   /* ready to start reading data; note that the first data line is buffered
    * in line[]. */
   std::size_t idx = 0;
-#ifdef DEBUG
-  double lat0 = grid->tick_axis_outter().tick_start();
-  double lon0 = grid->tick_axis_inner().tick_start();
-  double lat_stp = grid->tick_axis_outter().tick_step();
-  double lon_stp = grid->tick_axis_inner().tick_step();
-  int div = grid->tick_axis_inner().num_pts();
-#endif
-  while (!(error) && ((idx < grid->num_pts() && (fin.good())))) {
+  while (!(error) && ((idx < (std::size_t)grid->num_pts() && (fin.good())))) {
     const char *num = line;
-    /* latitude and longitude (dump them to range[]) */
-    for (int i = 0; i < 2; i++) {
-      auto ec =
-          std::from_chars(skipws(num), line + std::strlen(line), range[i]);
-      if (!(ec.ec == std::errc{})) ++error;
-      num = ec.ptr;
-    }
-    /* only for the first line, make sure we have the correct lat/lon */
-    if (!idx) {
-      assert(range[0] == grid->tick_axis_outter().tick_start());
-      assert(range[1] == grid->tick_axis_inner().tick_start());
-    }
-#ifdef DEBUG
-    grid->data(idx)->lat() = range[0];
-    grid->data(idx)->lon() = range[1];
-    int oj = idx / div;
-    int ij = idx % div;
-    assert(range[0] == lat0 + oj * lat_stp);
-    assert(range[1] == lon0 + ij * lon_stp);
-#endif
+    /* latitude and longitude */
+    auto ec = std::from_chars(skipws(num), line + std::strlen(line),
+                              grid->data(idx)->lat_deg());
+    if (!(ec.ec == std::errc{})) ++error;
+    num = ec.ptr;
+    ec = std::from_chars(skipws(num), line + std::strlen(line),
+                         grid->data(idx)->lon_deg());
+    if (!(ec.ec == std::errc{})) ++error;
+    num = ec.ptr;
+
     /* VMF3 grid data */
-    for (int i = 0; i < 8; i++) {
-      auto ec = std::from_chars(skipws(num), line + std::strlen(line),
-                                grid->data(idx)->data()[i]);
+    for (int i = 0; i < dso::vmf3::GridVmf3Data::Data::NUM_DATA_ELEMENTS; i++) {
+      ec = std::from_chars(skipws(num), line + std::strlen(line),
+                           grid->data(idx)->data()[i]);
       if (!(ec.ec == std::errc{})) ++error;
       num = ec.ptr;
     }
@@ -195,7 +173,7 @@ int dso::load_vmfgr3_grid_map(const char *fn,
   }
 
   /* check validity */
-  if (idx == grid->num_pts()) {
+  if (idx == (std::size_t)grid->num_pts()) {
     return 0;
   } else {
     fprintf(stderr,
