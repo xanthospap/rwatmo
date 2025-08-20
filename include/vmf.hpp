@@ -1,10 +1,20 @@
 #ifndef __DSO_VMF3_TROPO_MODELING_HPP__
 #define __DSO_VMF3_TROPO_MODELING_HPP__
 
+#include "vmf3.hpp"
 #include "vmf3_grid_stream.hpp"
 
 namespace dso {
-class Vmf3 {}; /* class Vmf3 */
+
+/* Contains a Site and grid data from interpolation (for some epoch). */
+struct SiteBlock {
+  vmf3::Site msite;
+  dso::GeodeticCrd mcrd;
+  double mcos2lat;
+  vmf3::GridVmf3Data::Data mdata_t0;
+  vmf3::GridVmf3Data::Data mdata_t1;
+  vmf3::Vmf3FullCoeffs msitebc;
+}; /* struct SiteBlock */
 
 class Vmf3SiteHandler {
  private:
@@ -12,6 +22,7 @@ class Vmf3SiteHandler {
   MjdEpoch mt1{MjdEpoch::min()};
   std::vector<vmf3::SiteBlock> msites;
   std::string mdata_dir;
+  Vmf3 mvmf3;
 
   [[no_discard]]
   int dso::Vmf3SiteHandler::load_sites_for_epoch(const ymd_date &ymd,
@@ -54,9 +65,28 @@ class Vmf3SiteHandler {
         d.data()[k] = it->mdata_t0.data()[k] +
                       w * (it->mdata_t1.data()[k] - it->mdata_t0.data()[k]);
       }
-      /* interpolated coeffs are not in d, for the current site */
+      /* interpolated coeffs are now in d, for the current site */
 
     } /* interval ok */
+
+    /* lift zhd/zwd to station height:
+     * (1) convert the hydrostatic zenith delay at grid height to the respective
+     * pressure value
+     */
+    const double pg = (d.zhd() / 0.0022768) *
+                      (1. - 0.00266 * it->mcos2lat - 0.28e-6 * it->oro_ell);
+    /* (2) lift the pressure each from grid height to site height */
+    const double ps =
+        pg * std::pow(1. - 2.26e-5 * (it->mcrd.hgt() - it->oro_ell), 5.225);
+    /* (3) convert the lifted pressure to zhd again (as proposed by Kouba, 2008)
+     */
+    d.zhd() = 0.0022768 * ps /
+              (1. - 0.00266 * it->mcos2lat - 0.28e-6 * it->mcrd.hgt());
+    /* zwd to site height */
+    d.zwd() *= std::exp(-(it->mcrd.hgt() - it->oro_ell) / 2e3);
+
+    /* compute mapping functions */
+    mvmf3.mf(t, el, d.ah(), d.aw(), it->msitebc, mfh, mfw);
   }
 }; /*class Vmf3SiteHandler */
 } /* namespace dso  */

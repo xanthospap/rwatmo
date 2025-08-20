@@ -21,36 +21,6 @@ struct Site {
   const char *dones() const { return data + domes_start_at; }
 };
 
-/** Full set of coefficients for computing b and c 'empirical' VMF3
- * coefficients. These coefficients have only a spatial dependence, hence can
- * be computed once for every site of interest.
- *
- * To fully compute the coefficients, temporal dependence must be considered,
- * which is done in the function Vmf3::compute().
- */
-struct Vmf3FullCoeffs {
-  double bh_A0{0e0};
-  double bh_A1{0e0};
-  double bh_B1{0e0};
-  double bh_A2{0e0};
-  double bh_B2{0e0};
-  double bw_A0{0e0};
-  double bw_A1{0e0};
-  double bw_B1{0e0};
-  double bw_A2{0e0};
-  double bw_B2{0e0};
-  double ch_A0{0e0};
-  double ch_A1{0e0};
-  double ch_B1{0e0};
-  double ch_A2{0e0};
-  double ch_B2{0e0};
-  double cw_A0{0e0};
-  double cw_A1{0e0};
-  double cw_B1{0e0};
-  double cw_A2{0e0};
-  double cw_B2{0e0};
-}; /* Vmf3FullCoeffs*/
-
 class GridVmf3Data {
  public:
   struct Data {
@@ -78,6 +48,10 @@ class GridVmf3Data {
     double data_[NUM_ELEMENTS];
     double *data() noexcept { return data_ + data_start_at_; }
     const double *data() const noexcept { return data_ + data_start_at_; }
+    double ah() const noexcept { return data_[data_start_at_]; }
+    double aw() const noexcept { return data_[data_start_at_ + 1]; }
+    double zhd() const noexcept { return data_[data_start_at_ + 2]; }
+    double zwd() const noexcept { return data_[data_start_at_ + 3]; }
   };
 
  private:
@@ -148,17 +122,6 @@ class GridVmf3Data {
                                      Data &out) const noexcept;
 
 }; /* class GridVmf3Data */
-
-/* Contains a Site and grid data from interpolation (for some epoch). */
-struct SiteBlock {
-  Site msite;
-  dso::GeodeticCrd mcrd;
-  GridVmf3Data::Data mdata_t0;
-  GridVmf3Data::Data mdata_t1;
-  Vmf3FullCoeffs msitebc;
-
-  void linear_interpolation(const MjdEpoch &t) const noexcept;
-}; /* struct SiteBlock */
 
 } /* namespace vmf3 */
 
