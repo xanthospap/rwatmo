@@ -1,8 +1,9 @@
 #include "geodesy/units.hpp"
 #include "vmf3.hpp"
 
-int dso::Vmf3SiteHandler::vmf3(const char *site, const dso::MjdEpoch &t,
-                               double el, vmf3::Vmf3Result &result) noexcept {
+int dso::Vmf3SiteHandler::vmf3_impl(const char *site, const dso::MjdEpoch &t,
+                                    double el,
+                                    vmf3::Vmf3Result &result) noexcept {
   /* check we are at the correct time interval */
   if (!(t >= mt0 && t < mt1)) {
     fprintf(stderr,

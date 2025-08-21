@@ -1,18 +1,16 @@
 #include "iers/gravity.hpp"
 #include "vmf3.hpp"
 
-int dso::Vmf3::vmf3_spatial_coeffs(dso::CartesianCrdConstView &rsta,
-                                   dso::vmf3::Vmf3FullCoeffs &coeffs) noexcept {
+int dso::Vmf3::vmf3_spatial_coeffs_impl(
+    const Eigen::Vector3d &rsta, dso::vmf3::Vmf3FullCoeffs &coeffs) noexcept {
   dso::CoeffMatrix2D<dso::MatrixStorageType::LwTriangularColWise> V(MAX_DEGREE,
                                                                     MAX_ORDER);
   dso::CoeffMatrix2D<dso::MatrixStorageType::LwTriangularColWise> W(MAX_DEGREE,
                                                                     MAX_ORDER);
 
-  const Eigen::Vector3d r = rsta.mv;
-
   /* calculate Legendre polynomials */
-  if (dso::gravity::sh_basis_cs_exterior(r.normalized(), MAX_DEGREE, MAX_ORDER,
-                                         V, W)) {
+  if (dso::gravity::sh_basis_cs_exterior(rsta.normalized(), MAX_DEGREE,
+                                         MAX_ORDER, V, W)) {
     fprintf(stderr,
             "[ERROR] Failed computing spherical harmonics basis "
             "functions! (traceback: %s)\n",

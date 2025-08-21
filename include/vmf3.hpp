@@ -1,5 +1,3 @@
-#include <datetime/core/fundamental_types_generic_utilities.hpp>
-#include <geodesy/core/crdtype_warppers.hpp>
 #include <limits>
 
 #include "geodesy/transformations.hpp"
@@ -130,7 +128,6 @@ class Vmf3 {
   static const double *bnm_cw_A2() noexcept { return bnm_cw[4 - 1]; }
   static const double *bnm_cw_B2() noexcept { return bnm_cw[5 - 1]; }
 
- public:
   /** @brief This function will compute the spatial part of the b and c
    * 'empirical' VMF3 coefficients
    *
@@ -142,8 +139,20 @@ class Vmf3 {
    * @param[out] coeffs An instance of vmf3::Vmf3FullCoeffs which can be later
    * used to compute the VMF3 mapping functions via mf()
    */
-  static int vmf3_spatial_coeffs(dso::CartesianCrdConstView &rsta,
-                                 vmf3::Vmf3FullCoeffs &coeffs) noexcept;
+  static int vmf3_spatial_coeffs_impl(const Eigen::Vector3d &rsta,
+                                      vmf3::Vmf3FullCoeffs &coeffs) noexcept;
+
+ public:
+  template <typename C>
+  static int vmf3_spatial_coeffs(const C &rsta,
+                                 vmf3::Vmf3FullCoeffs &coeffs) noexcept {
+#if __cplusplus >= 202002L
+    static_assert(isCartesian<C>);
+#else
+    static_assert(dso::CoordinateTypeTraits<C>::isCartesian);
+#endif
+    return vmf3_spatial_coeffs_impl(rsta.mv, coeffs);
+  }
 
   /** @brief Compute the VMF3 mapping functions, mfh and mfw.
    *
@@ -174,30 +183,46 @@ struct SiteBlock {
   /* coeffs for each surrounding node, [bl, br, tl, tr] */
   vmf3::Vmf3FullCoeffs msitebc[4];
 
-  int compute_spatial_vmf3_coeffs() noexcept {
-    dso::CartesianCrd rsta = dso::geodetic2cartesian(mcrd);
-  Vmf3::vmf3_spatial_coeffs(CartesianCrdConstView(rsta), 
-                                 vmf3::Vmf3FullCoeffs &coeffs) noexcept;
-  }
+  bool grid_matches_between_epochs() const noexcept;
 
-  void cp_t0tot1() noexcept {
-    for (int i = 0; i < 4; i++) {
-      std::memcpy(mdata_t1[i].raw_ptr(), mdata_t0[i].raw_ptr(),
-                  sizeof(double) * GridVmf3Data::Data::NUM_ENTRIES);
-    }
-  }
-  void cp_t1tot0() noexcept {
-    for (int i = 0; i < 4; i++) {
-      std::memcpy(mdata_t0[i].raw_ptr(), mdata_t1[i].raw_ptr(),
-                  sizeof(double) * GridVmf3Data::Data::NUM_ENTRIES);
-    }
-  }
+  /* The point of computation is the four nodes of a cell (around the point
+   * mcrd). The lat/lon coordinates of these points should be stored in
+   * mdata_t0 (or mdata_t1).
+   * These points are on the ellipsoid. Computed coeffs are stored in
+   * msitebc
+   * @return Anything other than zero denotes an error.
+   *
+   * @warning Assumes mdata_t0 is already populated!
+   */
+  int compute_spatial_vmf3_coeffs() noexcept;
 
-  template <ellipsoid E, typename C = CartesianCrd>
+  /** Copy data that refer to epoch t0 to t1 (i.e. mdata_t1 <- mdata_t0)
+   * Now mdata_t1 will hold an exact copy of the values in mdata_t0.
+   */
+  void cp_t0tot1() noexcept;
+
+  /** Copy data that refer to epoch t1 to t0 (i.e. mdata_t0 <- mdata_t1)
+   * Now mdata_t0 will hold an exact copy of the values in mdata_t1.
+   */
+  void cp_t1tot0() noexcept;
+
+  template <typename C = CartesianCrd, ellipsoid E = ellipsoid::grs80>
   SiteBlock(const char *site, const C &crd) noexcept {
-    static_assert(dso::CoordinateTypeTraits<C>::isCartesian);
     std::strcpy(msite.data, site);
-    mcrd = dso::cartesian2geodetic<E>(crd);
+#if __cplusplus >= 202002L
+    static_assert(isCartesian<C> || isGeodetic<C>);
+    if constexpr (isCartesian<C>)
+      mcrd = dso::cartesian2geodetic<E>(crd);
+    else
+      mcrd = GeodeticCrd(mcrd);
+#else
+    static_assert(dso::CoordinateTypeTraits<C>::isCartesian ||
+                  dso::CoordinateTypeTraits<C>::isGeodetic);
+    if constexpr (dso::CoordinateTypeTraits<C>::isCartesian)
+      mcrd = dso::cartesian2geodetic<E>(crd);
+    else
+      mcrd = GeodeticCrd(mcrd);
+#endif
     for (int i = 0; i < 4; i++) msitebc[i].set_missing();
   }
 
@@ -234,8 +259,11 @@ class Vmf3SiteHandler {
   Vmf3 mvmf3;
 
   int compute_spatial_vmf3_coeffs() noexcept {
+    int error = 0;
     for (auto &site : msites) {
+      if ((error += site.compute_spatial_vmf3_coeffs())) break;
     }
+    return error;
   }
 
   /* replace t0 with t1; t1 is left as is */
@@ -252,101 +280,19 @@ class Vmf3SiteHandler {
     }
   }
 
- public:
-  Vmf3SiteHandler()
-      : mt0(MjdEpoch::max()),
-        mt1(MjdEpoch::min()),
-        msites(),
-        mdata_dir{},
-        mvmf3() {};
+  int vmf3_impl(const char *site, const MjdEpoch &t, double el,
+                vmf3::Vmf3Result &result) noexcept;
 
-  template <typename T>
-  void append_site(const char *site, const T &crd) noexcept {}
+  int initialize(const MjdEpoch &t) noexcept;
 
-  int initialize(const MjdEpoch &t) noexcept {
-    /* find surounding epochs for t */
-    const double hours = t.seconds().seconds() / 3600e0;
-    const int intrv = (int)(hours / (double)FILE_TIME_INTERVAL);
-    const int hp = intrv * FILE_TIME_INTERVAL;
-    const int hn =
-        ((hp + FILE_TIME_INTERVAL) >= 24) ? 0 : (hp + FILE_TIME_INTERVAL);
-    if (hp < 0 || hn > 18) {
-      fprintf(stderr,
-              "[ERROR] Failed locating a time interval for given date "
-              "(traceback: %s)\n",
-              __func__);
-      return 1;
-    }
+  int load_correct_interval(const MjdEpoch &t) noexcept;
 
-    /* load the file prior to t */
-    if (load_sites_for_epoch(t.to_ymd(), hp)) {
-      fprintf(
-          stderr,
-          "[ERROR] Failed loading VMF3(GR) grid data file (traceback: %s)\n",
-          __func__);
-      return 1;
-    }
-    /* good, but t0 is now loaded as t1; left shift the data */
-    this->left_shift();
-
-    /* load the file next to t */
-    auto ymdn = t.to_ymd();
-    if (hn == 0) ymdn = t.add_seconds(FractionalSeconds(3599e0)).to_ymd();
-    if (load_sites_for_epoch(ymdn, hn)) {
-      fprintf(
-          stderr,
-          "[ERROR] Failed loading VMF3(GR) grid data file (traceback: %s)\n",
-          __func__);
-      return 1;
-    }
-    /* good, t1 now holds the data immidiate after t */
-    this->left_shift();
-
-    // TODO load orography
-    return 0;
+  bool grid_matches_between_epochs() const noexcept {
+    for (const auto &s : msites)
+      if (!s.grid_matches_between_epochs()) return false;
+    return true;
   }
 
-  int load_correct_interval(const MjdEpoch &t) noexcept {
-    constexpr const double INTRV = FILE_TIME_INTERVAL * 3600e0;
-    if (t >= mt0 && t < mt1) return 0;
-
-    /* the most probable case would be that we overrun the interval [t0, t1]
-     * and we now need [t1, t1+1]
-     */
-    if (mt1 <= t &&
-        t.diff<dso::DateTimeDifferenceType::FractionalSeconds>(mt1).seconds() <
-            INTRV) {
-      /* first move t1 to t0 */
-      this->left_shift();
-      /* find date and hours of day for next file */
-      auto tn = mt0.add_seconds(FractionalSeconds(INTRV));
-      const double hours = tn.seconds().seconds() / 3600e0;
-      const int intrv = (int)(hours / (double)FILE_TIME_INTERVAL);
-      const int hn = intrv * FILE_TIME_INTERVAL;
-      /* load the file prior to t */
-      if (load_sites_for_epoch(tn.to_ymd(), hn)) {
-        fprintf(
-            stderr,
-            "[ERROR] Failed loading VMF3(GR) grid data file (traceback: %s)\n",
-            __func__);
-        return 1;
-      }
-    }
-
-    /* if this is not the case fuck it, re-initialize */
-    if (initialize(t)) {
-      fprintf(
-          stderr,
-          "[ERROR] Failed loading VMF3(GR) grid data file(s) (traceback: %s)\n",
-          __func__);
-      return 1;
-    }
-
-    // TODO load orography
-    return 0;
-  }
-
- private:
   /** @brief Load a VMF3GR data grid and populate instance's  msites.
    *
    * The function will try to find a VMF3GR grid file located within the
@@ -371,15 +317,51 @@ class Vmf3SiteHandler {
    * above) parameters are used to form a possible filename for a VMF3GR
    * filename. Thus, the day_hours parameter should be a multiple of 3
    * with a 24-hour interval (i.e. 0, 3, 6, ...)
+   * @param[in] orography_ell If supplied, we should also read the
+   * 'orography_ellDxD' file that corresponds to the grid dimensions of the
+   * VMF3GR grid data files (i.e. either 1x1 or 5x5 degrees). If set to true,
+   * the file will be parsed and its data will be stored for the nodes
+   * surrounding the sites of interest (along with the rest of the VMF3GR data
+   * collected from the input file).
    * @return Anything other than zero denotes an error.
    */
-  int load_sites_for_epoch(const ymd_date &ymd, int day_hours) noexcept;
+  int load_sites_for_epoch(const ymd_date &ymd, int day_hours,
+                           bool load_orography_ell = false) noexcept;
 
   int load_sites_orography(const char *fn, std::size_t num_vals,
                            vmf3::GridVmf3Data *grid) noexcept;
 
+ public:
+  Vmf3SiteHandler(const char *data_dir = nullptr)
+      : mt0(MjdEpoch::max()),
+        mt1(MjdEpoch::min()),
+        msites(),
+        mdata_dir{(data_dir) ? data_dir : std::string("")},
+        mvmf3() {};
+
+  template <typename T, ellipsoid E = ellipsoid::grs80>
+  int append_site(const char *site, const T &crd) noexcept {
+    if (mt0 == dso::MjdEpoch::max() && mt1 == dso::MjdEpoch::min()) {
+      msites.emplace_back(site, crd);
+    } else {
+      fprintf(stderr,
+              "[ERROR] Cannot add new site to Vmf3SiteHandler after "
+              "initialization! (traceback: %s)\n",
+              __func__);
+      return 1;
+    }
+    return 0;
+  }
+
   int vmf3(const char *site, const MjdEpoch &t, double el,
-           vmf3::Vmf3Result &result) noexcept;
+           vmf3::Vmf3Result &result) noexcept {
+    /* first load the correct interval */
+    if (!(t >= mt0 && t < mt1)) {
+      if (load_correct_interval(t)) return 1;
+    }
+    /* all done, just compute the vmf3 mf[hw] and z[hw]d */
+    return vmf3_impl(site, t, el, result);
+  }
 }; /*class Vmf3SiteHandler */
 
 } /* namespace dso */
