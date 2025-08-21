@@ -3,10 +3,10 @@
 
 int dso::Vmf3::vmf3_spatial_coeffs_impl(
     const Eigen::Vector3d &rsta, dso::vmf3::Vmf3FullCoeffs &coeffs) noexcept {
-  dso::CoeffMatrix2D<dso::MatrixStorageType::LwTriangularColWise> V(MAX_DEGREE,
-                                                                    MAX_ORDER);
-  dso::CoeffMatrix2D<dso::MatrixStorageType::LwTriangularColWise> W(MAX_DEGREE,
-                                                                    MAX_ORDER);
+  dso::CoeffMatrix2D<dso::MatrixStorageType::LwTriangularColWise> V(
+      MAX_DEGREE + 1, MAX_ORDER + 1);
+  dso::CoeffMatrix2D<dso::MatrixStorageType::LwTriangularColWise> W(
+      MAX_DEGREE + 1, MAX_ORDER + 1);
 
   /* calculate Legendre polynomials */
   if (dso::gravity::sh_basis_cs_exterior(rsta.normalized(), MAX_DEGREE,

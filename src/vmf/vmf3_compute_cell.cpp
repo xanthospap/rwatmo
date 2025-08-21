@@ -10,6 +10,7 @@ int dso::Vmf3SiteHandler::vmf3_impl(const char *site, const dso::MjdEpoch &t,
             "[ERROR] Cannot compute vmf3! Wrong time interval, given t=%.9f "
             "while range is [%.9f to %.9f] (traceback: %s)\n",
             t.as_mjd(), mt0.as_mjd(), mt1.as_mjd(), __func__);
+    return 1;
   }
 
   /* find the site of interest */

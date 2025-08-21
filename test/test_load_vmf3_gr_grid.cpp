@@ -1,3 +1,4 @@
+#include "datetime/datetime_write.hpp"
 #include "vmf3.hpp"
 #ifdef NDEBUG
 #undef NDEBUG
@@ -48,6 +49,7 @@ int main(int argc, char *argv[]) {
   MjdEpoch t(60310, FractionalSeconds(0));
 
   vmf3::Vmf3Result res;
+  char buf[64];
   /* results here */
   while (t < MjdEpoch(60312, FractionalSeconds(0))) {
     for (int i = 0; i < num_sites; i++) {
@@ -56,6 +58,9 @@ int main(int argc, char *argv[]) {
                 sites[i], t.as_mjd());
         return 9;
       }
+      printf("%s %s %.3f %.3f\n",
+             to_char<YMDFormat::YYYYMMDD, HMSFormat::HHMMSSF>(t, buf), sites[i],
+             res.zhd(), res.zwd());
     }
     t.add_seconds_inplace(FractionalSeconds(30));
   }

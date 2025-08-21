@@ -5,9 +5,6 @@
 
 int dso::Vmf3SiteHandler::load_sites_for_epoch(
     const ymd_date &ymd, int day_hours, bool load_orography_ell) noexcept {
-  printf("> trying to open file for date: %d-%d-%d\n",
-         ymd.yr().as_underlying_type(), ymd.mn().as_underlying_type(),
-         ymd.dm().as_underlying_type());
   /* construct the (possible) filename, i.e. V3GR_20230105.H06 */
   char filename[48];
   std::sprintf(filename, "V3GR_%d%02d%02d.H%02d", ymd.yr().as_underlying_type(),
