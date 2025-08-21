@@ -1,5 +1,8 @@
 #include "geodesy/units.hpp"
 #include "vmf3.hpp"
+#ifdef DEBUG
+#include <cassert>
+#endif
 
 int dso::Vmf3SiteHandler::vmf3_impl(const char *site, const dso::MjdEpoch &t,
                                     double el,
@@ -50,6 +53,9 @@ int dso::Vmf3SiteHandler::vmf3_impl(const char *site, const dso::MjdEpoch &t,
         &(it->mdata_t1[node]);
     for (int k = 0; k < dso::vmf3::GridVmf3Data::Data::NUM_DATA_ELEMENTS; k++) {
       d[node].data()[k] = d0->data()[k] + w * (d1->data()[k] - d0->data()[k]);
+      /* lat/lon not needed, but we are using them later for interpolation */
+      d[node].lat_deg() = d0->lat_deg();
+      d[node].lon_deg() = d0->lon_deg();
     }
 
     /* Step 2: Compute ZHD, ZWD, MFH, and MFW at each node */
@@ -87,7 +93,44 @@ int dso::Vmf3SiteHandler::vmf3_impl(const char *site, const dso::MjdEpoch &t,
     res[node].mfh() += (1e0 / sel - nmfh) * it->mcrd.hgt() / 1e3;
   }
 
-  /* done for all nodes, now bilinear interpolation */
-  result = res[0];
+  /* done for all nodes, now bilinear interpolation; note the order:
+   * 
+   *  +-------------+         ---> y2
+   *  |(tl, 2)      | (tr, 3)
+   *  |             |
+   *  |             |
+   *  +-------------+         ---> y1
+   *   (bl, 0)       (br, 1)
+   *  |             |
+   *  |             |
+   *  V x1          V x2
+   *
+   *   name | index | or
+   *   bl   | 0     | (1,1)
+   *   br   | 1     | (2,1)
+   *   tl   | 2     | (1,2)
+   *   tr   | 3     | (2,2)
+   */
+  const double x = dso::norm_angle<dso::detail::AngleUnit::Degrees>(dso::rad2deg(it->mcrd.lon()));
+  const double y = dso::rad2deg(it->mcrd.lat());
+  const double x1 = d[0].lon_deg();
+  const double y1 = d[0].lat_deg();
+  const double x2 = d[3].lon_deg();
+  const double y2 = d[3].lat_deg();
+#ifdef DEBUG
+  assert(x>=x1 && x<x2);
+  assert(y>=y1 && y<y2);
+#endif
+  const double x2mx1 = (x2-x1);
+  const double y2my1 = (y2-y1);
+  const double w11 = ((y2-y)/y2my1) * ((x2-x)/x2mx1);
+  const double w21 = ((y2-y)/y2my1) * ((x-x1)/x2mx1);
+  const double w12 = ((y-y1)/y2my1) * ((x2-x)/x2mx1);
+  const double w22 = ((y-y1)/y2my1) * ((x-x1)/x2mx1);
+  result.zhd() = w11 * res[0].zhd() + w21 * res[1].zhd() + w12 * res[2].zhd() + w22 * res[3].zhd();
+  result.zwd() = w11 * res[0].zwd() + w21 * res[1].zwd() + w12 * res[2].zwd() + w22 * res[3].zwd();
+  result.mfh() = w11 * res[0].mfh() + w21 * res[1].mfh() + w12 * res[2].mfh() + w22 * res[3].mfh();
+  result.mfw() = w11 * res[0].mfw() + w21 * res[1].mfw() + w12 * res[2].mfw() + w22 * res[3].mfw();
+
   return 0;
 }
