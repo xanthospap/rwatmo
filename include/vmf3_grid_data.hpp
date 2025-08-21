@@ -39,7 +39,11 @@ class GridVmf3Data {
     static constexpr const int NUM_DATA_ELEMENTS = 8;
     static constexpr const int NUM_ENTRIES = NUM_DATA_ELEMENTS + data_start_at_;
 
+
     double data_[NUM_ENTRIES];
+    double *raw_ptr() noexcept {return data_; }
+    const double *raw_ptr() const noexcept {return data_; }
+    
     double *data() noexcept { return data_ + data_start_at_; }
     const double *data() const noexcept { return data_ + data_start_at_; }
 
